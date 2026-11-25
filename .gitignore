@@ -1,0 +1,17 @@
+node_modules/
+coverage/
+dist/
+.env
+.env.*
+!.env.example
+!.sandcastle/.env.example
+.sandcastle/.env
+.sandcastle/logs/
+.sandcastle/worktrees/
+.vite/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+docs/gallery/*.png
+!docs/gallery/.gitkeep

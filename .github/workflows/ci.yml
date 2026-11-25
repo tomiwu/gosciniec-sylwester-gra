@@ -1,0 +1,93 @@
+# Required job ids on main: format, lint, test, crap, secrets. Do not rename them.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Check the format
+        run: npm run format:check
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Lint with warnings as errors
+        run: npm run lint && npm run typecheck
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Run the unit tests
+        run: npm test
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Run the visual tests
+        run: npm run test:visual
+      - name: Upload the screenshot gallery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gallery
+          path: docs/gallery/*.png
+          if-no-files-found: error
+  crap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Coverage and CRAP gate (fails if a unit has CRAP >= 6)
+        env:
+          CRAP_LIMIT: "6"
+        run: scripts/crap.sh
+  secrets:
+    name: gitleaks and deny-list
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Scan the full history with gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks git --redact --verbose --exit-code 1 .
+      - name: Check for personal strings (deny-list from the DENYLIST secret)
+        env:
+          DENYLIST: ${{ secrets.DENYLIST }}
+        run: |
+          if [ -z "$DENYLIST" ]; then echo "DENYLIST is empty. Skip this step."; exit 0; fi
+          printf '%s\n' "$DENYLIST" | sed '/^[[:space:]]*$/d' > /tmp/denylist.txt
+          if git grep -n -i -F -f /tmp/denylist.txt -- . ':!package-lock.json' > /tmp/hits.txt; then
+            echo "Personal strings found in these files (values hidden):"
+            cut -d: -f1,2 /tmp/hits.txt
+            exit 1
+          fi
+          if git log --all -p --format= | grep -q -i -F -f /tmp/denylist.txt; then
+            echo "Personal strings found in the git history."
+            exit 1
+          fi
+          echo "No personal strings found."

@@ -1,0 +1,36 @@
+{
+  "name": "gosciniec-sylwester-gra",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage",
+    "test:visual": "playwright test",
+    "gallery": "playwright test e2e/gallery.spec.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "crap": "scripts/crap.sh",
+    "precommit": "scripts/precommit.sh",
+    "sandcastle": "npx tsx .sandcastle/main.mts",
+    "test:loop": "npx tsx .sandcastle/loop-policy-test.mts && bash scripts/test-stop-gate.sh"
+  },
+  "devDependencies": {
+    "@ai-hero/sandcastle": "0.12.0",
+    "@eslint/js": "^9.39.1",
+    "@playwright/test": "1.65.1",
+    "@sebassdc/crap4ts": "0.1.1",
+    "@vitest/coverage-v8": "4.0.8",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "3.6.2",
+    "tsx": "^4.19.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.2",
+    "vite": "^7.1.12",
+    "vitest": "4.0.8"
+  }
+}
