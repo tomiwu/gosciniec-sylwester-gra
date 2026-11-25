@@ -119,20 +119,56 @@ function checkView(state: PanelState): string {
   ${errorNote(state)}`;
 }
 
-function listView(state: PanelState): string {
+function listStats(state: PanelState): string {
   const stats = state.stats;
-  const statsHtml = stats
-    ? `<ul class="staff-stats">
+  if (!stats) return "";
+  return `<ul class="staff-stats">
         <li>${pl.panelPlayers}: <strong>${stats.players}</strong></li>
         <li>${pl.panelCodesIssued}: <strong>${stats.codes}</strong></li>
         <li>${pl.panelCodesUsed}: <strong>${stats.redeemed}</strong></li>
-      </ul>`
-    : "";
+      </ul>`;
+}
+
+function selected(current: string, value: string): string {
+  return current === value ? " selected" : "";
+}
+
+function listFilters(state: PanelState): string {
+  const kind = state.listKind ?? "all";
+  const used = state.listUsed ?? "all";
+  return `<div class="staff-filters">
+      <label>${pl.panelFilterKind}
+        <select id="filter-kind">
+          <option value="all"${selected(kind, "all")}>${pl.panelFilterAll}</option>
+          <option value="base"${selected(kind, "base")}>${pl.panelDiscountBase}</option>
+          <option value="share"${selected(kind, "share")}>${pl.panelDiscountShare}</option>
+        </select>
+      </label>
+      <label>${pl.panelFilterStatus}
+        <select id="filter-used">
+          <option value="all"${selected(used, "all")}>${pl.panelFilterAll}</option>
+          <option value="open"${selected(used, "open")}>${pl.panelStatusValid}</option>
+          <option value="used"${selected(used, "used")}>${pl.panelStatusUsed}</option>
+        </select>
+      </label>
+    </div>`;
+}
+
+function listTable(state: PanelState): string {
   const rows = visibleCodes(state);
-  const table =
-    rows.length === 0
-      ? `<p class="note">${pl.panelEmptyList}</p>`
-      : `<table class="staff-table">
+  if (rows.length === 0) return `<p class="note">${pl.panelEmptyList}</p>`;
+  const body = rows
+    .map(
+      (row) => `<tr>
+            <td>${escapeHtml(row.code)}</td>
+            <td>${escapeHtml(row.nickname)}</td>
+            <td>${formatDiscount(row.kind)}</td>
+            <td>${row.usedAt ? pl.panelStatusUsed : pl.panelStatusValid}</td>
+            <td>${formatWhen(row.earnedAt)}</td>
+          </tr>`,
+    )
+    .join("");
+  return `<table class="staff-table">
         <thead><tr>
           <th>${pl.panelCodeLabel}</th>
           <th>${pl.panelNick}</th>
@@ -140,66 +176,46 @@ function listView(state: PanelState): string {
           <th>${pl.panelStatus}</th>
           <th>${pl.panelEarnedAt}</th>
         </tr></thead>
-        <tbody>${rows
-          .map(
-            (row) => `<tr>
-            <td>${escapeHtml(row.code)}</td>
-            <td>${escapeHtml(row.nickname)}</td>
-            <td>${formatDiscount(row.kind)}</td>
-            <td>${row.usedAt ? pl.panelStatusUsed : pl.panelStatusValid}</td>
-            <td>${formatWhen(row.earnedAt)}</td>
-          </tr>`,
-          )
-          .join("")}</tbody>
+        <tbody>${body}</tbody>
       </table>`;
-  const kind = state.listKind ?? "all";
-  const used = state.listUsed ?? "all";
-  return `${statsHtml}
-    <div class="staff-filters">
-      <label>${pl.panelFilterKind}
-        <select id="filter-kind">
-          <option value="all"${kind === "all" ? " selected" : ""}>${pl.panelFilterAll}</option>
-          <option value="base"${kind === "base" ? " selected" : ""}>${pl.panelDiscountBase}</option>
-          <option value="share"${kind === "share" ? " selected" : ""}>${pl.panelDiscountShare}</option>
-        </select>
-      </label>
-      <label>${pl.panelFilterStatus}
-        <select id="filter-used">
-          <option value="all"${used === "all" ? " selected" : ""}>${pl.panelFilterAll}</option>
-          <option value="open"${used === "open" ? " selected" : ""}>${pl.panelStatusValid}</option>
-          <option value="used"${used === "used" ? " selected" : ""}>${pl.panelStatusUsed}</option>
-        </select>
-      </label>
-    </div>
-    ${table}
+}
+
+function listView(state: PanelState): string {
+  return `${listStats(state)}
+    ${listFilters(state)}
+    ${listTable(state)}
     ${errorNote(state)}`;
 }
 
-function rankingView(state: PanelState): string {
-  const confirm = state.hidePending
-    ? `<p class="note" role="alert">${pl.panelHideConfirm} <strong>${escapeHtml(state.hidePending)}</strong></p>
+function hideConfirm(nickname: string): string {
+  return `<p class="note" role="alert">${pl.panelHideConfirm} <strong>${escapeHtml(nickname)}</strong></p>
        <div class="actions">
          <button type="button" class="btn" id="hide-ok">${pl.panelHideOk}</button>
          <button type="button" class="btn secondary" id="hide-cancel">${pl.panelHideCancel}</button>
-       </div>`
-    : "";
+       </div>`;
+}
+
+function rankingTable(state: PanelState): string {
   const rows = state.ranking ?? [];
-  const table =
-    rows.length === 0
-      ? `<p class="note">${pl.panelEmptyRanking}</p>`
-      : `<table class="staff-table">
-        <thead><tr><th>${pl.panelNick}</th><th>${pl.score}</th><th></th></tr></thead>
-        <tbody>${rows
-          .map(
-            (row) => `<tr>
+  if (rows.length === 0) return `<p class="note">${pl.panelEmptyRanking}</p>`;
+  const body = rows
+    .map(
+      (row) => `<tr>
             <td>${escapeHtml(row.nickname)}</td>
             <td>${row.score}</td>
             <td><button type="button" class="btn secondary" data-hide="${escapeHtml(row.nickname)}">${pl.panelHideNick}</button></td>
           </tr>`,
-          )
-          .join("")}</tbody>
+    )
+    .join("");
+  return `<table class="staff-table">
+        <thead><tr><th>${pl.panelNick}</th><th>${pl.score}</th><th></th></tr></thead>
+        <tbody>${body}</tbody>
       </table>`;
-  return `${table}${confirm}${errorNote(state)}`;
+}
+
+function rankingView(state: PanelState): string {
+  const confirm = state.hidePending ? hideConfirm(state.hidePending) : "";
+  return `${rankingTable(state)}${confirm}${errorNote(state)}`;
 }
 
 function sectionBody(state: PanelState): string {

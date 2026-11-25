@@ -11,58 +11,91 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function stringFromRecord(
+  record: Record<string, unknown>,
+  keys: readonly string[],
+): string {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return "";
+}
+
+function firstString(
+  records: Array<Record<string, unknown> | null>,
+  keys: readonly string[],
+): string {
+  for (const record of records) {
+    if (!record) continue;
+    const found = stringFromRecord(record, keys);
+    if (found) return found;
+  }
+  return "";
+}
+
 /** Accepts a few /-/auth/me shapes that Kody may return. */
 export function sessionFromMe(value: unknown): KodySession | null {
   const root = asRecord(value);
   if (!root) return null;
   const user = asRecord(root.user) ?? root;
-  const userId =
-    (typeof user.id === "string" && user.id) ||
-    (typeof user.userId === "string" && user.userId) ||
-    (typeof root.userId === "string" && root.userId) ||
-    "";
-  const username =
-    (typeof user.username === "string" && user.username) ||
-    (typeof user.login === "string" && user.login) ||
-    (typeof root.username === "string" && root.username) ||
-    "";
+  const userId = firstString([user, root], ["id", "userId"]);
+  const username = firstString([user, root], ["username", "login"]);
   if (!userId || !username) return null;
   return { userId, username };
 }
 
-export function createKodyHostAuth(options?: {
+function defaultAssign(url: string): void {
+  window.location.assign(url);
+}
+
+type HostAuthOptions = {
   fetch?: typeof fetch;
   assign?: (url: string) => void;
   loginPath?: string;
   logoutPath?: string;
   mePath?: string;
-}): StaffAuth {
-  const get = options?.fetch ?? fetch;
-  const assign =
-    options?.assign ??
-    ((url: string) => {
-      window.location.assign(url);
-    });
-  const loginPath = options?.loginPath ?? "/-/auth/login?return_to=/panel/";
-  const logoutPath = options?.logoutPath ?? "/-/auth/logout?return_to=/panel/";
-  const mePath = options?.mePath ?? "/-/auth/me";
+};
 
+const AUTH_DEFAULTS = {
+  loginPath: "/-/auth/login?return_to=/panel/",
+  logoutPath: "/-/auth/logout?return_to=/panel/",
+  mePath: "/-/auth/me",
+};
+
+function hostAuthOptions(options: HostAuthOptions = {}): {
+  fetch: typeof fetch;
+  assign: (url: string) => void;
+  loginPath: string;
+  logoutPath: string;
+  mePath: string;
+} {
+  return { fetch, assign: defaultAssign, ...AUTH_DEFAULTS, ...options };
+}
+
+async function restoreMe(
+  get: typeof fetch,
+  mePath: string,
+): Promise<KodySession | null> {
+  try {
+    const response = await get(mePath, { credentials: "same-origin" });
+    if (!response.ok) return null;
+    return sessionFromMe(await response.json());
+  } catch {
+    return null;
+  }
+}
+
+export function createKodyHostAuth(options?: HostAuthOptions): StaffAuth {
+  const cfg = hostAuthOptions(options);
   return {
-    async restore() {
-      try {
-        const response = await get(mePath, { credentials: "same-origin" });
-        if (!response.ok) return null;
-        return sessionFromMe(await response.json());
-      } catch {
-        return null;
-      }
-    },
+    restore: () => restoreMe(cfg.fetch, cfg.mePath),
     async signIn() {
-      assign(loginPath);
+      cfg.assign(cfg.loginPath);
       return null;
     },
     async signOut() {
-      assign(logoutPath);
+      cfg.assign(cfg.logoutPath);
     },
   };
 }

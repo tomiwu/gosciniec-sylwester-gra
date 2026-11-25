@@ -44,6 +44,11 @@ describe("createKodyHostAuth", () => {
     expect(await auth.restore()).toEqual({ userId: "u1", username: "tomiwu" });
     await auth.signIn();
     expect(assigned).toEqual(["/-/auth/login?return_to=/panel/"]);
+    await auth.signOut();
+    expect(assigned).toEqual([
+      "/-/auth/login?return_to=/panel/",
+      "/-/auth/logout?return_to=/panel/",
+    ]);
   });
 
   it("returns no session when the me route is not signed in", async () => {

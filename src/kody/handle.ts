@@ -10,27 +10,6 @@ export type HandleDeps = {
   resolveUser: (request: Request) => Promise<AppUser | null>;
 };
 
-const STAFF_ROUTES: Record<
-  string,
-  { rpc: StaffRpcName; args: (body: unknown) => Record<string, unknown> }
-> = {
-  "/api/staff/check": {
-    rpc: "check_code",
-    args: (body) => ({ p_code: textField(body, "code") }),
-  },
-  "/api/staff/redeem": {
-    rpc: "redeem_code",
-    args: (body) => ({
-      p_code: textField(body, "code"),
-      p_note: optionalText(body, "note"),
-    }),
-  },
-  "/api/staff/hide-nickname": {
-    rpc: "hide_nickname",
-    args: (body) => ({ p_nickname: textField(body, "nickname") }),
-  },
-};
-
 function textField(body: unknown, key: string): string {
   if (!body || typeof body !== "object") return "";
   const value = (body as Record<string, unknown>)[key];
@@ -79,6 +58,101 @@ async function readJson(request: Request): Promise<unknown> {
   }
 }
 
+function isGamePath(path: string): boolean {
+  return path === "" || path === "/";
+}
+
+function isPanelPath(path: string): boolean {
+  return path === "/panel" || path === "/panel/index.html";
+}
+
+function staticPage(
+  request: Request,
+  path: string,
+  method: string,
+): Response | null {
+  if (method !== "GET") return null;
+  if (isGamePath(path)) return assetRedirect(request, "/_assets/index.html");
+  if (isPanelPath(path))
+    return assetRedirect(request, "/_assets/panel/index.html");
+  return null;
+}
+
+async function postRpc(
+  rpc: StaffRpcName,
+  args: Record<string, unknown>,
+  deps: HandleDeps,
+): Promise<Response> {
+  const result = await callStaffRpc(rpc, args, deps);
+  return json(result.status, result.body);
+}
+
+const GET_RPC: Record<
+  string,
+  { rpc: StaffRpcName; args: Record<string, unknown> }
+> = {
+  "/api/staff/codes": {
+    rpc: "list_codes",
+    args: { p_limit: 200, p_offset: 0 },
+  },
+  "/api/staff/stats": { rpc: "dashboard_stats", args: {} },
+  "/api/staff/ranking": { rpc: "leaderboard", args: { p_limit: 50 } },
+};
+
+const POST_RPC: Record<
+  string,
+  { rpc: StaffRpcName; args: (body: unknown) => Record<string, unknown> }
+> = {
+  "/api/staff/check": {
+    rpc: "check_code",
+    args: (body) => ({ p_code: textField(body, "code") }),
+  },
+  "/api/staff/redeem": {
+    rpc: "redeem_code",
+    args: (body) => ({
+      p_code: textField(body, "code"),
+      p_note: optionalText(body, "note"),
+    }),
+  },
+  "/api/staff/hide-nickname": {
+    rpc: "hide_nickname",
+    args: (body) => ({ p_nickname: textField(body, "nickname") }),
+  },
+};
+
+async function staffRoute(
+  request: Request,
+  path: string,
+  method: string,
+  deps: HandleDeps,
+): Promise<Response> {
+  if (method === "GET") {
+    const route = GET_RPC[path];
+    return route
+      ? postRpc(route.rpc, route.args, deps)
+      : json(404, { error: "not_found" });
+  }
+  if (method === "POST") {
+    const route = POST_RPC[path];
+    if (!route) return json(404, { error: "not_found" });
+    return postRpc(route.rpc, route.args(await readJson(request)), deps);
+  }
+  return json(404, { error: "not_found" });
+}
+
+async function authorizeStaff(
+  request: Request,
+  path: string,
+  method: string,
+  deps: HandleDeps,
+): Promise<Response> {
+  const user = await deps.resolveUser(request);
+  if (!isStaff(user, deps.allowList)) {
+    return json(401, { error: "unauthorized" });
+  }
+  return staffRoute(request, path, method, deps);
+}
+
 /** Kody fetch handler: staff RPCs stay on the server. Static pages come from /_assets. */
 export async function handleRequest(
   request: Request,
@@ -86,52 +160,13 @@ export async function handleRequest(
 ): Promise<Response> {
   const path = pathname(request);
   const method = request.method.toUpperCase();
-
-  if (method === "GET" && (path === "" || path === "/")) {
-    return assetRedirect(request, "/_assets/index.html");
-  }
-  if (method === "GET" && (path === "/panel" || path === "/panel/index.html")) {
-    return assetRedirect(request, "/_assets/panel/index.html");
-  }
-
+  const page = staticPage(request, path, method);
+  if (page) return page;
   if (path === "/api/staff/me" && method === "GET") {
-    const user = await deps.resolveUser(request);
-    return json(200, { user });
+    return json(200, { user: await deps.resolveUser(request) });
   }
-
-  const needsStaff = path.startsWith("/api/staff/") && path !== "/api/staff/me";
-  if (needsStaff) {
-    const user = await deps.resolveUser(request);
-    if (!isStaff(user, deps.allowList)) {
-      return json(401, { error: "unauthorized" });
-    }
-
-    if (path === "/api/staff/codes" && method === "GET") {
-      const result = await callStaffRpc(
-        "list_codes",
-        { p_limit: 200, p_offset: 0 },
-        deps,
-      );
-      return json(result.status, result.body);
-    }
-    if (path === "/api/staff/stats" && method === "GET") {
-      const result = await callStaffRpc("dashboard_stats", {}, deps);
-      return json(result.status, result.body);
-    }
-    if (path === "/api/staff/ranking" && method === "GET") {
-      const result = await callStaffRpc("leaderboard", { p_limit: 50 }, deps);
-      return json(result.status, result.body);
-    }
-
-    const route = STAFF_ROUTES[path];
-    if (route && method === "POST") {
-      const body = await readJson(request);
-      const result = await callStaffRpc(route.rpc, route.args(body), deps);
-      return json(result.status, result.body);
-    }
-
+  if (!path.startsWith("/api/staff/")) {
     return json(404, { error: "not_found" });
   }
-
-  return json(404, { error: "not_found" });
+  return authorizeStaff(request, path, method, deps);
 }

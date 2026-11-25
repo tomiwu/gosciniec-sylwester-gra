@@ -88,6 +88,53 @@ it("shows a code check and the redeem button for a valid code", () => {
   expect(html).not.toContain('type="password"');
 });
 
+it("shows the code list and the ranking", () => {
+  const list = renderPanel({
+    session: staff,
+    allowList: allow,
+    section: "list",
+    listKind: "base",
+    listUsed: "open",
+    stats: { players: 1, codes: 1, shareCodes: 0, redeemed: 0 },
+    list: [
+      {
+        code: "SYL-SBAA",
+        nickname: "TEST-NOCNY",
+        score: 200,
+        kind: "base",
+        referrals: 0,
+        earnedAt: "2026-11-25T21:00:00Z",
+        usedAt: null,
+      },
+    ],
+  });
+  expect(list).toContain("SYL-SBAA");
+  expect(list).toContain(pl.panelCodesIssued);
+  expect(list).toContain('id="filter-kind"');
+  const empty = renderPanel({
+    session: staff,
+    allowList: allow,
+    section: "list",
+  });
+  expect(empty).toContain(pl.panelEmptyList);
+  const ranking = renderPanel({
+    session: staff,
+    allowList: allow,
+    section: "ranking",
+    ranking: [{ nickname: "TEST-NOCNY", score: 200 }],
+    hidePending: "TEST-NOCNY",
+  });
+  expect(ranking).toContain("TEST-NOCNY");
+  expect(ranking).toContain(pl.panelHideConfirm);
+  expect(ranking).toContain('id="hide-ok"');
+  const emptyRank = renderPanel({
+    session: staff,
+    allowList: allow,
+    section: "ranking",
+  });
+  expect(emptyRank).toContain(pl.panelEmptyRanking);
+});
+
 describe("escapeHtml", () => {
   it("keeps plain text", () => {
     expect(escapeHtml("tomiwu")).toBe("tomiwu");

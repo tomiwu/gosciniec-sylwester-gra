@@ -77,10 +77,18 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
+function rejectStaffStatus(status: number): void {
+  if (status === 401 || status === 403) {
+    throw new BackendError("forbidden", "Not signed in as staff.");
+  }
+  if (status >= 400) {
+    throw new BackendError("server", "Staff API failed.");
+  }
+}
+
 async function staffFetch(path: string, init?: RequestInit): Promise<unknown> {
-  let response: Response;
   try {
-    response = await fetch(path, {
+    const response = await fetch(path, {
       credentials: "same-origin",
       ...init,
       headers: {
@@ -89,17 +97,13 @@ async function staffFetch(path: string, init?: RequestInit): Promise<unknown> {
         ...init?.headers,
       },
     });
-  } catch {
+    const body = await readJson(response);
+    rejectStaffStatus(response.status);
+    return body;
+  } catch (error) {
+    if (error instanceof BackendError) throw error;
     throw new BackendError("network", "Staff API is offline.");
   }
-  if (response.status === 401 || response.status === 403) {
-    throw new BackendError("forbidden", "Not signed in as staff.");
-  }
-  const body = await readJson(response);
-  if (!response.ok) {
-    throw new BackendError("server", "Staff API failed.");
-  }
-  return body;
 }
 
 /** Same-origin staff API served by the Kody fetch handler. */
