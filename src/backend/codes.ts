@@ -17,12 +17,12 @@ export function nicknameKey(nickname: string): string {
   return nickname.trim().toLowerCase();
 }
 
-export function isExpired(now: Date, codes = CODES): boolean {
-  return now.getTime() >= Date.parse(codes.expiresAtIso);
+export function isExpired(now: Date): boolean {
+  return now.getTime() >= Date.parse(CODES.expiresAtIso);
 }
 
-export function isDeviceIdValid(deviceId: string, codes = CODES): boolean {
-  return deviceId.length >= 1 && deviceId.length <= codes.deviceIdMaxLength;
+export function isDeviceIdValid(deviceId: string): boolean {
+  return deviceId.length >= 1 && deviceId.length <= CODES.deviceIdMaxLength;
 }
 
 /** True when the suffix is a piece of the nickname (letters and digits only). */
@@ -31,10 +31,10 @@ export function isSliceOf(suffix: string, nickname: string): boolean {
   return clean.includes(suffix);
 }
 
-function randomSuffix(randomInt: RandomInt, codes = CODES): string {
-  const size = codes.alphabet.length;
-  return Array.from({ length: codes.suffixLength }, () =>
-    codes.alphabet.charAt(randomInt(size)),
+function randomSuffix(randomInt: RandomInt): string {
+  const size = CODES.alphabet.length;
+  return Array.from({ length: CODES.suffixLength }, () =>
+    CODES.alphabet.charAt(randomInt(size)),
   ).join("");
 }
 
