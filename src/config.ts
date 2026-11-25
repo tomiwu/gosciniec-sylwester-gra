@@ -150,6 +150,18 @@ export const STAFF = {
   allowList: ["tomiwu"],
   /** Local dev only: the mock Kody user. Set another user with ?kodyUser=<name>. */
   mockUsername: "tomiwu",
+  /** Same-origin staff API. The Kody fetch handler (issue #17) serves these routes. */
+  api: {
+    checkPath: "/api/staff/check",
+    redeemPath: "/api/staff/redeem",
+  },
+  /**
+   * First instant when a code is expired: 1 January 2027 00:00 Europe/Warsaw (CET, UTC+1).
+   * A code is valid until 31 December 2026, 23:59:59 Warsaw time.
+   */
+  codeExpiresAtIso: "2026-12-31T23:00:00.000Z",
+  /** Time zone for staff dates. */
+  timeZone: "Europe/Warsaw",
 } as const;
 
 /**

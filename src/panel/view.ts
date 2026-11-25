@@ -61,7 +61,16 @@ function navButton(section: PanelSection, current: PanelSection): string {
   return `<button type="button" class="btn secondary nav-item" data-section="${section}"${mark}>${SECTION_LABELS[section]}</button>`;
 }
 
-function shellView(state: PanelState, session: KodySession): string {
+function sectionBody(state: PanelState, checkView: string): string {
+  if (state.section === "check" && checkView) return checkView;
+  return `<p class="note">${pl.panelSoon}</p>`;
+}
+
+function shellView(
+  state: PanelState,
+  session: KodySession,
+  checkView: string,
+): string {
   const nav = PANEL_SECTIONS.map((s) => navButton(s, state.section)).join("");
   return `<section class="panel staff" data-screen="shell">
     <header class="staff-header">
@@ -72,15 +81,18 @@ function shellView(state: PanelState, session: KodySession): string {
     <nav class="actions staff-nav" aria-label="${pl.panelTitle}">${nav}</nav>
     <main class="staff-main" data-section="${state.section}">
       <h2 class="subtitle">${SECTION_LABELS[state.section]}</h2>
-      <p class="note">${pl.panelSoon}</p>
+      ${sectionBody(state, checkView)}
     </main>
   </section>`;
 }
 
-/** HTML for the panel. Only an allow-listed Kody session gets the staff shell. */
-export function renderPanel(state: PanelState): string {
+/**
+ * HTML for the panel. Only an allow-listed Kody session gets the staff shell.
+ * `checkView` is the code-check HTML for the check section.
+ */
+export function renderPanel(state: PanelState, checkView = ""): string {
   const { session } = state;
   if (!session) return loginView();
   if (!isStaff(session, state.allowList)) return deniedView(session);
-  return shellView(state, session);
+  return shellView(state, session, checkView);
 }

@@ -53,6 +53,38 @@ describe("renderPanel", () => {
     expect(html).not.toContain(pl.panelSignIn);
   });
 
+  it("shows the code check view in the check section", () => {
+    const shell = {
+      session: staff,
+      allowList: allow,
+      section: "check" as const,
+    };
+    const html = renderPanel(shell, '<form id="code-check-form"></form>');
+    expect(html).toContain('<form id="code-check-form"></form>');
+    expect(html).not.toContain(pl.panelSoon);
+  });
+
+  it("keeps the placeholder in the other sections", () => {
+    const html = renderPanel(
+      { session: staff, allowList: allow, section: "ranking" },
+      '<form id="code-check-form"></form>',
+    );
+    expect(html).toContain(pl.panelSoon);
+    expect(html).not.toContain("code-check-form");
+  });
+
+  it("never shows the code check view without a staff session", () => {
+    const view = '<form id="code-check-form"></form>';
+    const login = {
+      session: null,
+      allowList: allow,
+      section: "check" as const,
+    };
+    expect(renderPanel(login, view)).not.toContain("code-check-form");
+    const denied = { ...login, session: guest };
+    expect(renderPanel(denied, view)).not.toContain("code-check-form");
+  });
+
   it("escapes the username", () => {
     const html = renderPanel({
       session: { userId: "x", username: "<b>&\"'" },

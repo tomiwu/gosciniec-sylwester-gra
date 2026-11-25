@@ -45,6 +45,27 @@ export const pl = {
   panelNavList: "Lista kodów",
   panelNavRanking: "Ranking",
   panelSoon: "Ta funkcja będzie dostępna wkrótce.",
+  panelCodeLabel: "Kod gracza",
+  panelCheckSubmit: "Sprawdź",
+  panelCheckEmpty: "Wpisz kod w formacie SYL-XXXX.",
+  panelCheckFailed:
+    "Nie udało się sprawdzić kodu. Sprawdź połączenie i spróbuj ponownie za chwilę.",
+  panelFieldCode: "Kod",
+  panelFieldNick: "Nick",
+  panelFieldDiscount: "Zniżka",
+  panelFieldEarned: "Data uzyskania",
+  panelFieldStatus: "Status",
+  panelStatusValid: "Ważny",
+  panelStatusUsed: "Wykorzystany",
+  panelStatusUnknown: "Nieznany",
+  panelStatusExpired: "Wygasły",
+  panelDiscountShare: "Bonus za polecenia",
+  panelEmptyValue: "—",
+  panelRedeem: "Oznacz jako wykorzystany",
+  panelRedeemHint: "Jeden kod obejmuje całą rezerwację (wszystkie osoby).",
+  panelRedeemDone: "Kod oznaczono jako wykorzystany.",
+  panelRedeemFailed:
+    "Nie udało się oznaczyć kodu. Kod nie został zmieniony. Spróbuj ponownie za chwilę.",
 } as const;
 
 export type PlKey = keyof typeof pl;
