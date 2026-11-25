@@ -23,7 +23,8 @@ Useful commands:
 - `npm test` — unit tests and coverage
 - `npm run test:visual` — Playwright layout and contrast checks
 - `npm run gallery` — screenshots in `docs/gallery/`
-- `npm run build` — static files in `dist/`
+- `npm run build` — static files in `dist/` (GitHub Pages, relative base)
+- `npm run build:kody` — the same build with base `/_assets/` for the Kody host
 - `npm run precommit` — format, lint, typecheck, unit tests, CRAP
 
 ## Config
@@ -54,36 +55,35 @@ Discount codes:
 
 SQL functions (`supabase/migrations/`):
 
-| Function          | Role                    | Purpose                                          |
-| ----------------- | ----------------------- | ------------------------------------------------ |
-| `issue_code`      | anon                    | Store the score, count a referral, give the code |
-| `leaderboard`     | anon                    | Top scores: nickname and score only              |
-| `check_code`      | staff (`authenticated`) | Nickname, discount, date earned, status          |
-| `redeem_code`     | staff (`authenticated`) | Use the code once                                |
-| `list_codes`      | staff (`authenticated`) | All codes, newest first                          |
-| `dashboard_stats` | staff (`authenticated`) | Players, codes, share codes, redeemed            |
-| `hide_nickname`   | staff (`authenticated`) | Remove a nickname from the leaderboard           |
+| Function          | Role              | Purpose                                          |
+| ----------------- | ----------------- | ------------------------------------------------ |
+| `issue_code`      | anon              | Store the score, count a referral, give the code |
+| `leaderboard`     | anon              | Top scores: nickname and score only              |
+| `check_code`      | service_role only | Nickname, discount, date earned, status          |
+| `redeem_code`     | service_role only | Use the code once                                |
+| `list_codes`      | service_role only | All codes, newest first                          |
+| `dashboard_stats` | service_role only | Players, codes, share codes, redeemed            |
+| `hide_nickname`   | service_role only | Remove a nickname from the leaderboard           |
 
-All tables have Row Level Security on and no policies. Clients cannot read or change a table directly. A staff function also checks that the logged-in user is in `public.staff`.
+All tables have Row Level Security on and no policies. Clients cannot read or change a table directly. Staff functions accept only the `service_role` key. The Kody fetch handler is the only process that uses that key. See `KODY.md`.
 
 ## Supabase setup (Tomasz)
 
 1. Create a free Supabase project.
 2. In **Project Settings → API**, copy the project URL and the `anon` public key. Put them in `.env.local` as `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, or in the host env.
 3. Run the migrations: open **SQL Editor** and run each file in `supabase/migrations/` in name order. With the Supabase CLI you can use `supabase link` and then `supabase db push`.
-4. Create one staff user: **Authentication → Users → Add user** (email and password). In **Authentication → Providers → Email**, turn off new sign-ups.
-5. Make that user staff. In the SQL editor, run `insert into public.staff (user_id) select id from auth.users where email = '<staff email>';` with the real staff email.
+4. Store the service role key as the Kody user secret `supabaseServiceRole`. Approve the host `csyrndeuldzbbkizmcav.supabase.co`. Do not put this key in the app, in `.env.local`, in the repository, or in a message.
 
-**Do not put the service role key in the app, in `.env.local`, in the repository, or in a message.** The app uses only the anon key. The staff panel uses the session of the staff user.
+The game uses only the anon key. Staff tools run after **Sign in with Kody** on the package app. See `KODY.md`.
 
 ## What Tomasz must provide
 
 1. A Supabase project URL and the anon key (free tier is enough). See "Supabase setup".
 2. The hotel website domain and the publish method (FTP, WordPress, or other).
 3. The real booking page URL (the default is the public hotel email).
-4. A yes to merge each pull request, and a later yes to publish the game.
+4. A yes to publish the Kody package app, and a yes to merge each pull request.
 
-Do not send the Supabase service role key. The app must not use it.
+Do not put the Supabase service role key in the client or the repository. The Kody secret `supabaseServiceRole` already holds it.
 
 ## Process
 

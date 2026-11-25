@@ -64,6 +64,30 @@ describe("renderPanel", () => {
   });
 });
 
+it("shows a code check and the redeem button for a valid code", () => {
+  const html = renderPanel({
+    session: staff,
+    allowList: allow,
+    section: "check",
+    check: {
+      code: "SYL-SBAA",
+      status: "valid",
+      nickname: "TEST-NOCNY",
+      kind: "base",
+      discountPercent: 10,
+      pricePerPerson: 333,
+      earnedAt: "2026-11-25T21:00:00Z",
+      usedAt: null,
+    },
+  });
+  expect(html).toContain("SYL-SBAA");
+  expect(html).toContain("TEST-NOCNY");
+  expect(html).toContain(pl.panelStatusValid);
+  expect(html).toContain(pl.panelRedeem);
+  expect(html).toContain(pl.panelDiscountBase);
+  expect(html).not.toContain('type="password"');
+});
+
 describe("escapeHtml", () => {
   it("keeps plain text", () => {
     expect(escapeHtml("tomiwu")).toBe("tomiwu");
