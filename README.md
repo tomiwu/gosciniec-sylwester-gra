@@ -45,7 +45,15 @@ Without Supabase keys, the app uses a local mock. Scores do not leave the browse
 3. The real booking page URL (the default is the public hotel email).
 4. A yes to merge each pull request, and a later yes to publish the game.
 
-Do not send the Supabase service role key. The app must not use it.
+Do not send the Supabase service role key. The game front end must not use it. Store it only as the Kody secret `supabaseServiceRole` (see `docs/kody.md`).
+
+## Kody hosting
+
+The game and the staff page `/panel/` run as a Kody package app. The staff
+API runs only in the fetch handler, with the Kody secret
+`supabaseServiceRole`. Staff allow list: `tomiwu`. See `docs/kody.md` for the
+Supabase URL, the anon key, the secret name, host approval, `kody dev`, and
+publish. Do not publish until Tomasz says yes.
 
 ## Process
 

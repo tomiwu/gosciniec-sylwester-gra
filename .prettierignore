@@ -7,3 +7,4 @@ blob-report
 docs/gallery
 package-lock.json
 public/assets/*.txt
+.sandcastle/context

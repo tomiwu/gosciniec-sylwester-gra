@@ -37,3 +37,11 @@ export const pl = {
 } as const;
 
 export type PlKey = keyof typeof pl;
+
+/** Staff panel text (`/panel/`), served by the Kody fetch handler. */
+export const plPanel = {
+  title: "Panel recepcji",
+  signedInAs: "Zalogowano jako",
+  logout: "Wyloguj",
+  forbidden: "Brak dostępu",
+} as const;
