@@ -89,13 +89,16 @@ function nicknameArgs(body: unknown): Args | null {
   return nickname === null ? null : { p_nickname: nickname };
 }
 
-const STAFF_ROUTES: Record<string, StaffRoute> = {
-  check: { method: "POST", rpc: "check_code", args: codeArgs },
-  redeem: { method: "POST", rpc: "redeem_code", args: redeemArgs },
-  codes: { method: "GET", rpc: "list_codes", args: listArgs },
-  stats: { method: "GET", rpc: "dashboard_stats", args: () => ({}) },
-  "hide-nickname": { method: "POST", rpc: "hide_nickname", args: nicknameArgs },
-};
+const STAFF_ROUTES: ReadonlyMap<string, StaffRoute> = new Map([
+  ["check", { method: "POST", rpc: "check_code", args: codeArgs }],
+  ["redeem", { method: "POST", rpc: "redeem_code", args: redeemArgs }],
+  ["codes", { method: "GET", rpc: "list_codes", args: listArgs }],
+  ["stats", { method: "GET", rpc: "dashboard_stats", args: () => ({}) }],
+  [
+    "hide-nickname",
+    { method: "POST", rpc: "hide_nickname", args: nicknameArgs },
+  ],
+]);
 
 function isStaff(user: KodyUser, allowList: readonly string[]): boolean {
   const name = user.username.toLowerCase();
@@ -158,13 +161,6 @@ export function createHandler(deps: HandlerDeps) {
   const allowList = deps.allowList ?? KODY_APP.staffAllowList;
   const supabaseUrl = deps.supabaseUrl ?? KODY_APP.supabaseUrl;
 
-  /** null = no session, false = not staff, otherwise the staff user. */
-  async function staffUser(request: Request): Promise<KodyUser | null | false> {
-    const user = await deps.resolveUser(request);
-    if (user === null) return null;
-    return isStaff(user, allowList) ? user : false;
-  }
-
   async function panel(request: Request): Promise<Response> {
     if (request.method !== "GET") {
       return new Response(null, { status: 405, headers: { Allow: "GET" } });
@@ -177,15 +173,17 @@ export function createHandler(deps: HandlerDeps) {
   }
 
   async function staffApi(request: Request, name: string): Promise<Response> {
-    const user = await staffUser(request);
+    const user = await deps.resolveUser(request);
     if (user === null) {
       return jsonResponse(401, {
         error: "unauthenticated",
         loginUrl: loginUrl(PANEL_PATH),
       });
     }
-    if (user === false) return jsonResponse(403, { error: "forbidden" });
-    const route = STAFF_ROUTES[name];
+    if (!isStaff(user, allowList)) {
+      return jsonResponse(403, { error: "forbidden" });
+    }
+    const route = STAFF_ROUTES.get(name);
     if (route === undefined) return jsonResponse(404, { error: "not_found" });
     return runStaffRoute(request, route, supabaseUrl, deps.fetch);
   }

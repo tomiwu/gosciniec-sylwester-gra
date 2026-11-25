@@ -130,12 +130,15 @@ describe("staff API access", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it("answers 404 for an unknown staff route after the auth check", async () => {
-    const { handler, fetchFn } = setup(STAFF);
-    const res = await handler.fetch(get("/api/staff/unknown"));
-    expect(res.status).toBe(404);
-    expect(fetchFn).not.toHaveBeenCalled();
-  });
+  it.each(["unknown", "constructor", "__proto__", "toString"])(
+    "answers 404 for the unknown staff route %s after the auth check",
+    async (name) => {
+      const { handler, fetchFn } = setup(STAFF);
+      const res = await handler.fetch(get(`/api/staff/${name}`));
+      expect(res.status).toBe(404);
+      expect(fetchFn).not.toHaveBeenCalled();
+    },
+  );
 
   it("answers 405 for a wrong method", async () => {
     const { handler, fetchFn } = setup(STAFF);
