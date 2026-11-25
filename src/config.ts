@@ -15,15 +15,18 @@ export const COLORS = {
 
 /** Game-clock slow-down. Factor 1 = real time. A higher factor makes midnight come later. */
 export const CLOCK = {
-  /** Game time from start to midnight, in milliseconds, at factor 1. */
-  baseDurationMs: 60_000,
+  /** Game time from start to midnight, in milliseconds, at factor 1 (~25 s). */
+  baseDurationMs: 25_000,
   /** slowFactor = min(maxFactor, minFactor * streakRatio ** streak). */
   streakRatio: 1.5,
   minFactor: 1,
-  /** Cap so a round stays short. 1.5 ** 5 is about 7.59, so 6 is near a streak of 5. */
-  maxFactor: 6,
-  /** Hard stop in real time. A long streak must not make a round last many minutes. */
-  maxWallClockMs: 90_000,
+  /**
+   * Cap so a good streak ends near 40 s (25 s * 1.6).
+   * 1.5 ** 1 is 1.5; 1.5 ** 2 is 2.25, so the cap applies from streak 2.
+   */
+  maxFactor: 1.6,
+  /** Hard stop in real time. A long streak must not run past about 40 s. */
+  maxWallClockMs: 42_000,
 } as const;
 
 export const ITEMS = {
@@ -34,10 +37,9 @@ export const ITEMS = {
 } as const;
 
 export const PLAY = {
-  spawnEveryMs: 700,
+  spawnEveryMs: 600,
   playerSpeedPxPerSec: 420,
   catchRadiusPx: 56,
-  fallSpeedPxPerSec: 280,
   /**
    * How much fall speed and spawn rate grow as remaining time falls.
    * At midnight the tempo is 1 + tempoBoost (items fall and spawn faster).
@@ -58,6 +60,28 @@ export const FIELD = {
   itemRadiusPx: 22,
 } as const;
 
+/** Pseudo-3D floor: items come from the vanishing point toward the couple. */
+export const DEPTH = {
+  /** Same x as the clock centre. */
+  vanishX: 195,
+  /** Same y as the clock centre, so the hall leads into the skyline. */
+  vanishY: 298,
+  /** Where the visible floor begins, just under the clock ring. */
+  horizonY: 470,
+  lanes: 5,
+  spawnZ: 0.08,
+  catchZ: 1,
+  catchMinZ: 0.86,
+  catchMaxZ: 1.08,
+  missZ: 1.16,
+  /** Depth units per second at tempo 1. Travel 0.08 → 1 takes about 1.4 s. */
+  approachPerSec: 0.65,
+  itemSizeFar: 24,
+  itemSizeNear: 68,
+  easeY: 1.25,
+  easeScale: 1.15,
+} as const;
+
 /** Juicy feedback timings, in milliseconds of real time. */
 export const FEEDBACK = {
   popMs: 700,
@@ -71,8 +95,17 @@ export const FEEDBACK = {
   hitMs: 320,
   /** How long the catch pose stays after a catch. */
   catchPoseMs: 420,
-  /** How long a left/right dance pose stays after a move. */
-  poseHoldMs: 280,
+  /** Short hold so a drag does not flicker, then idle when the pointer stops. */
+  poseHoldMs: 80,
+  /** Cross-fade between dance poses. */
+  blendMs: 160,
+  /** Faster fade into the catch pose. */
+  blendCatchMs: 90,
+  /** One spin after a catch when the streak is at least spinFromStreak. */
+  spinMs: 520,
+  spinFromStreak: 2,
+  /** Life of a catch sparkle particle. */
+  sparkMs: 520,
 } as const;
 
 export const REWARD = {

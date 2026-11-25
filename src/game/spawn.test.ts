@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FIELD, ITEMS } from "../config";
+import { DEPTH, FIELD, ITEMS, PLAY } from "../config";
+import { project } from "./depth";
 import { isCaught, pickKind, spawnItem } from "./spawn";
 
 const weights = {
@@ -31,33 +32,46 @@ describe("pickKind", () => {
 });
 
 describe("spawnItem", () => {
-  it("spawns above the field inside the side margins", () => {
+  it("spawns at the far end of a floor lane", () => {
     const rolls = [0, 0];
     const left = spawnItem(7, () => rolls.shift() ?? 0);
-    expect(left).toMatchObject({ id: 7, kind: "glass", x: FIELD.edgePx });
-    expect(left.y).toBeLessThan(0);
-    const high = [0.99, 1];
+    expect(left).toMatchObject({
+      id: 7,
+      kind: "glass",
+      lane: 0,
+      z: DEPTH.spawnZ,
+    });
+    const far = project(0, DEPTH.spawnZ);
+    expect(left.x).toBeCloseTo(far.x, 6);
+    expect(left.y).toBeCloseTo(far.y, 6);
+    const high = [0.99, 0.99];
     const right = spawnItem(8, () => high.shift() ?? 1);
     expect(right.kind).toBe("obstacle");
-    expect(right.x).toBeCloseTo(FIELD.width - FIELD.edgePx, 6);
+    expect(right.lane).toBe(DEPTH.lanes - 1);
   });
 });
 
 describe("isCaught", () => {
-  const at = (x: number, y: number) => ({
+  const at = (x: number, z: number) => ({
     id: 1,
     kind: "glass" as const,
+    lane: 2,
+    z,
     x,
-    y,
+    y: FIELD.playerY,
   });
 
-  it("catches an item inside the catch radius", () => {
-    expect(isCaught(at(100, FIELD.playerY), 100)).toBe(true);
-    expect(isCaught(at(130, FIELD.playerY - 30), 100)).toBe(true);
+  it("catches an item in the catch window and radius", () => {
+    expect(isCaught(at(100, DEPTH.catchZ), 100)).toBe(true);
+    expect(isCaught(at(100 + PLAY.catchRadiusPx, DEPTH.catchZ), 100)).toBe(
+      true,
+    );
   });
 
-  it("does not catch an item outside the catch radius", () => {
-    expect(isCaught(at(300, FIELD.playerY), 100)).toBe(false);
-    expect(isCaught(at(100, 100), 100)).toBe(false);
+  it("does not catch an item that is too far or too wide", () => {
+    expect(isCaught(at(100 + PLAY.catchRadiusPx + 1, DEPTH.catchZ), 100)).toBe(
+      false,
+    );
+    expect(isCaught(at(100, 0.2), 100)).toBe(false);
   });
 });

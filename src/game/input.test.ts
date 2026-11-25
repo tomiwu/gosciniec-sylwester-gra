@@ -41,7 +41,7 @@ describe("clientToFieldX", () => {
 describe("keyboard", () => {
   it("reads arrows and A/D", () => {
     const { input, key } = setup();
-    expect(input.read()).toEqual({ dir: 0, targetX: null });
+    expect(input.read()).toEqual({ dir: 0, dragDx: 0 });
     key("keydown", "ArrowLeft");
     expect(input.read().dir).toBe(-1);
     key("keyup", "ArrowLeft");
@@ -86,41 +86,50 @@ describe("keyboard", () => {
     expect(input.read().dir).toBe(0);
   });
 
-  it("takes the control back from the pointer", () => {
+  it("can steer with the keyboard while a pointer is held still", () => {
     const { input, key, ptr } = setup();
     ptr("pointerdown", 100);
     key("keydown", "ArrowRight");
-    expect(input.read().targetX).toBeNull();
+    expect(input.read()).toEqual({ dir: 1, dragDx: 0 });
   });
 });
 
 describe("pointer", () => {
-  it("follows a touch drag and lets go on release", () => {
+  it("moves only by the drag delta and is idle when the finger is still", () => {
     const { input, ptr } = setup();
     ptr("pointermove", 80);
-    expect(input.read().targetX).toBeNull();
+    expect(input.read().dragDx).toBe(0);
     ptr("pointerdown", 100);
-    expect(input.read().targetX).toBe(50);
+    expect(input.read().dragDx).toBe(0);
     ptr("pointermove", 140);
-    expect(input.read().targetX).toBe(70);
+    // toFieldX = clientX / 2, so 140 - 100 maps to +20
+    expect(input.read().dragDx).toBe(20);
+    expect(input.read().dragDx).toBe(0);
     ptr("pointerup", 140);
-    expect(input.read().targetX).toBeNull();
+    ptr("pointermove", 200);
+    expect(input.read().dragDx).toBe(0);
   });
 
-  it("follows the mouse without a button and keeps the target on release", () => {
+  it("does not follow a mouse hover, only a pressed drag", () => {
     const { input, ptr } = setup();
     ptr("pointermove", 60, "mouse");
-    expect(input.read().targetX).toBe(30);
+    expect(input.read().dragDx).toBe(0);
     ptr("pointerdown", 80, "mouse");
-    ptr("pointerup", 80, "mouse");
-    expect(input.read().targetX).toBe(40);
+    ptr("pointermove", 120, "mouse");
+    expect(input.read().dragDx).toBe(20);
+    ptr("pointerup", 120, "mouse");
+    ptr("pointermove", 200, "mouse");
+    expect(input.read().dragDx).toBe(0);
   });
 
-  it("clears the target when the pointer is cancelled", () => {
+  it("stops the drag when the pointer is cancelled", () => {
     const { input, ptr } = setup();
     ptr("pointerdown", 100);
-    ptr("pointercancel", 100);
-    expect(input.read().targetX).toBeNull();
+    ptr("pointermove", 140);
+    ptr("pointercancel", 140);
+    expect(input.read().dragDx).toBe(20);
+    ptr("pointermove", 200);
+    expect(input.read().dragDx).toBe(0);
   });
 });
 
@@ -130,6 +139,6 @@ describe("dispose", () => {
     input.dispose();
     key("keydown", "ArrowLeft");
     ptr("pointerdown", 100);
-    expect(input.read()).toEqual({ dir: 0, targetX: null });
+    expect(input.read()).toEqual({ dir: 0, dragDx: 0 });
   });
 });

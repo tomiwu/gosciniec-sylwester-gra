@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   CLOCK,
+  DEPTH,
   FIELD,
   ITEMS,
   PLAY,
   slowFactor,
   tempoMultiplier,
 } from "../config";
+import { placeItem } from "./depth";
 import { createGame, stepGame } from "./game";
 import type { GameState, InputState, Item } from "./types";
 
-const idle: InputState = { dir: 0, targetX: null };
+const idle: InputState = { dir: 0, dragDx: 0 };
 const zero = () => 0;
 
 function quiet(patch: Partial<GameState> = {}): GameState {
@@ -18,7 +20,14 @@ function quiet(patch: Partial<GameState> = {}): GameState {
 }
 
 function itemAtPlayer(state: GameState, kind: Item["kind"], id = 1): Item {
-  return { id, kind, x: state.playerX, y: FIELD.playerY };
+  return {
+    id,
+    kind,
+    lane: 2,
+    z: DEPTH.catchZ,
+    x: state.playerX,
+    y: FIELD.playerY,
+  };
 }
 
 describe("createGame", () => {
@@ -39,24 +48,27 @@ describe("createGame", () => {
 
 describe("player movement", () => {
   it("moves with the keyboard at the player speed", () => {
-    const state = stepGame(quiet(), 100, { dir: 1, targetX: null }, zero);
+    const state = stepGame(quiet(), 100, { dir: 1, dragDx: 0 }, zero);
     expect(state.playerX).toBeCloseTo(
       FIELD.width / 2 + PLAY.playerSpeedPxPerSec * 0.1,
       6,
     );
-    const back = stepGame(quiet(), 100, { dir: -1, targetX: null }, zero);
+    const back = stepGame(quiet(), 100, { dir: -1, dragDx: 0 }, zero);
     expect(back.playerX).toBeLessThan(FIELD.width / 2);
   });
 
-  it("follows a pointer target at once", () => {
-    const state = stepGame(quiet(), 16, { dir: 0, targetX: 120 }, zero);
-    expect(state.playerX).toBe(120);
+  it("moves by the drag delta and stays put when the pointer is still", () => {
+    const mid = FIELD.width / 2;
+    const state = stepGame(quiet(), 16, { dir: 0, dragDx: 40 }, zero);
+    expect(state.playerX).toBe(mid + 40);
+    const still = stepGame(state, 16, idle, zero);
+    expect(still.playerX).toBe(state.playerX);
   });
 
   it("stays inside the side margins", () => {
-    const left = stepGame(quiet(), 16, { dir: 0, targetX: -50 }, zero);
+    const left = stepGame(quiet(), 16, { dir: 0, dragDx: -9999 }, zero);
     expect(left.playerX).toBe(FIELD.edgePx);
-    const right = stepGame(quiet(), 16, { dir: 0, targetX: 9999 }, zero);
+    const right = stepGame(quiet(), 16, { dir: 0, dragDx: 9999 }, zero);
     expect(right.playerX).toBe(FIELD.width - FIELD.edgePx);
   });
 });
@@ -74,16 +86,16 @@ describe("items", () => {
     expect(second.nextId).toBe(2);
   });
 
-  it("makes items fall and removes them below the field", () => {
+  it("brings items closer and removes them past the catch line", () => {
     const state = quiet({
       items: [
-        { id: 1, kind: "star", x: 10, y: 100 },
-        { id: 2, kind: "star", x: 10, y: FIELD.height + FIELD.itemRadiusPx },
+        placeItem({ id: 1, kind: "star", lane: 0, z: 0.5 }),
+        placeItem({ id: 2, kind: "star", lane: 0, z: DEPTH.missZ }),
       ],
     });
     const next = stepGame(state, 100, idle, zero);
     expect(next.items).toHaveLength(1);
-    expect(next.items[0]?.y).toBeCloseTo(100 + PLAY.fallSpeedPxPerSec * 0.1, 6);
+    expect(next.items[0]?.z).toBeCloseTo(0.5 + DEPTH.approachPerSec * 0.1, 6);
   });
 });
 
@@ -131,7 +143,7 @@ describe("catching", () => {
   it("does not break the streak when an item is missed", () => {
     const state = quiet({
       streak: 3,
-      items: [{ id: 1, kind: "glass", x: 20, y: FIELD.height }],
+      items: [placeItem({ id: 1, kind: "glass", lane: 0, z: 1.12 })],
     });
     const next = stepGame(state, 100, idle, zero);
     expect(next.streak).toBe(3);
@@ -163,7 +175,10 @@ describe("clock", () => {
 
   it("slows down with the streak as 1.5 ** streak", () => {
     const next = stepGame(quiet({ streak: 2 }), 100, idle, zero);
-    expect(next.remainingMs).toBeCloseTo(CLOCK.baseDurationMs - 100 / 2.25, 6);
+    expect(next.remainingMs).toBeCloseTo(
+      CLOCK.baseDurationMs - 100 / CLOCK.maxFactor,
+      6,
+    );
   });
 
   it("slows down at once when a catch raises the streak", () => {
@@ -195,7 +210,11 @@ describe("end of the round", () => {
   });
 
   it("ends at the wall-clock cap even with a long streak", () => {
-    const state = quiet({ streak: 50, elapsedRealMs: 89_950 });
+    const state = quiet({
+      streak: 50,
+      elapsedRealMs: CLOCK.maxWallClockMs - 50,
+      remainingMs: 20_000,
+    });
     const next = stepGame(state, 100, idle, zero);
     expect(next.status).toBe("ended");
     expect(next.endReason).toBe("wallClock");
@@ -209,7 +228,7 @@ describe("end of the round", () => {
     expect(next.remainingMs).toBe(CLOCK.baseDurationMs - PLAY.maxStepMs);
   });
 
-  it("never lasts more than the wall-clock cap with a capped streak", () => {
+  it("ends a long streak at midnight near 40 s, inside the wall-clock cap", () => {
     let state = quiet({ streak: 50 });
     const dt = 16;
     let steps = 0;
@@ -217,15 +236,19 @@ describe("end of the round", () => {
       state = { ...stepGame(state, dt, idle, zero), streak: 50 };
       steps += 1;
     }
-    expect(state.endReason).toBe("wallClock");
+    expect(state.endReason).toBe("midnight");
+    expect(state.elapsedRealMs).toBeCloseTo(
+      CLOCK.baseDurationMs * CLOCK.maxFactor,
+      -2,
+    );
     expect(state.elapsedRealMs).toBeLessThanOrEqual(CLOCK.maxWallClockMs + dt);
   });
 
-  it("ends after about 60 s of game time at factor 1", () => {
+  it("ends after the base duration of game time at factor 1", () => {
     let state = createGame();
     const dt = 50;
     while (state.status === "playing") {
-      state = stepGame(state, dt, { dir: 0, targetX: 5000 }, () => 0.99);
+      state = stepGame(state, dt, { dir: 0, dragDx: 0 }, () => 0.99);
       state = { ...state, streak: 0 };
     }
     expect(state.endReason).toBe("midnight");
@@ -234,30 +257,30 @@ describe("end of the round", () => {
 
   it("freezes an ended round", () => {
     const ended = stepGame(quiet({ remainingMs: 1 }), 16, idle, zero);
-    const again = stepGame(ended, 16, { dir: 1, targetX: null }, zero);
+    const again = stepGame(ended, 16, { dir: 1, dragDx: 0 }, zero);
     expect(again).toEqual({ ...ended, events: [] });
   });
 });
 
 describe("tempo as time runs down", () => {
-  it("makes items fall faster when less time remains", () => {
+  it("makes items approach faster when less time remains", () => {
     const late = quiet({
       remainingMs: 0,
-      items: [{ id: 1, kind: "star", x: 10, y: 100 }],
+      items: [placeItem({ id: 1, kind: "star", lane: 0, z: 0.4 })],
     });
     const next = stepGame(late, 100, idle, zero);
-    expect(next.items[0]?.y).toBeCloseTo(
-      100 + PLAY.fallSpeedPxPerSec * tempoMultiplier(0) * 0.1,
+    expect(next.items[0]?.z).toBeCloseTo(
+      0.4 + DEPTH.approachPerSec * tempoMultiplier(0) * 0.1,
       6,
     );
   });
 
-  it("keeps the start-of-round fall speed at the base rate", () => {
+  it("keeps the start-of-round approach speed at the base rate", () => {
     const state = quiet({
-      items: [{ id: 1, kind: "star", x: 10, y: 100 }],
+      items: [placeItem({ id: 1, kind: "star", lane: 0, z: 0.4 })],
     });
     const next = stepGame(state, 100, idle, zero);
-    expect(next.items[0]?.y).toBeCloseTo(100 + PLAY.fallSpeedPxPerSec * 0.1, 6);
+    expect(next.items[0]?.z).toBeCloseTo(0.4 + DEPTH.approachPerSec * 0.1, 6);
   });
 
   it("spawns sooner when less time remains", () => {

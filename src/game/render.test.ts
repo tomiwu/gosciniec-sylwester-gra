@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FEEDBACK } from "../config";
 import { createEffects } from "./effects";
+import { placeItem } from "./depth";
 import { createGame } from "./game";
 import {
   clockAngles,
@@ -40,7 +41,9 @@ function fakeCtx() {
 function stateWith(kinds: ItemKind[], patch: Partial<GameState> = {}) {
   return {
     ...createGame(),
-    items: kinds.map((kind, id) => ({ id, kind, x: 50 + id * 40, y: 200 })),
+    items: kinds.map((kind, id) =>
+      placeItem({ id, kind, lane: id, z: 0.4 + id * 0.15 }),
+    ),
     ...patch,
   };
 }
@@ -106,7 +109,7 @@ describe("drawFrame", () => {
       labels,
     );
     expect(texts).toContain("Wynik: 45");
-    expect(texts).toContain("×2.3");
+    expect(texts).toContain("×1.6");
     expect(texts.some((line) => line.includes("Do północy"))).toBe(false);
     expect(texts.some((line) => /\d:\d\d/.test(line))).toBe(false);
   });
@@ -126,6 +129,7 @@ describe("drawFrame", () => {
       createGame(),
       {
         pops: [{ x: 100, y: 300, points: 15, ageMs: FEEDBACK.popMs / 2 }],
+        sparks: [],
         flashMs: FEEDBACK.flashMs,
         pulseMs: FEEDBACK.pulseMs,
         hitMs: FEEDBACK.hitMs,
@@ -152,6 +156,10 @@ function stubArt() {
     coupleLeft: stubImg(80, 120),
     coupleRight: stubImg(80, 120),
     coupleCatch: stubImg(80, 120),
+    itemGlass: stubImg(64, 90),
+    itemStar: stubImg(80, 80),
+    itemClock: stubImg(60, 90),
+    itemObstacle: stubImg(80, 80),
   };
 }
 
@@ -164,6 +172,64 @@ describe("drawFrame with art", () => {
     });
     expect(calls.filter((name) => name === "drawImage").length).toBeGreaterThan(
       2,
+    );
+  });
+
+  it("draws item sprites when art is present", () => {
+    const { ctx, calls } = fakeCtx();
+    const kinds: ItemKind[] = ["glass", "star", "clock", "obstacle"];
+    const before = fakeCtx();
+    drawFrame(before.ctx, stateWith([]), createEffects(), labels, {
+      art: stubArt(),
+    });
+    drawFrame(ctx, stateWith(kinds), createEffects(), labels, {
+      art: stubArt(),
+    });
+    expect(calls.filter((name) => name === "drawImage").length).toBe(
+      before.calls.filter((name) => name === "drawImage").length + kinds.length,
+    );
+  });
+
+  it("draws sparkles around a catch", () => {
+    const { ctx, calls } = fakeCtx();
+    drawFrame(
+      ctx,
+      createGame(),
+      {
+        ...createEffects(),
+        sparks: [
+          {
+            x: 100,
+            y: 200,
+            vx: 10,
+            vy: -20,
+            ageMs: 80,
+            lifeMs: FEEDBACK.sparkMs,
+            size: 3,
+            hue: "gold",
+          },
+        ],
+      },
+      labels,
+    );
+    expect(calls).toContain("translate");
+    expect(calls).toContain("fill");
+  });
+
+  it("cross-fades between couple poses", () => {
+    const { ctx, calls } = fakeCtx();
+    drawFrame(ctx, createGame(), createEffects(), labels, {
+      nowMs: 800,
+      art: stubArt(),
+      pose: "left",
+      prevPose: "idle",
+      blend: 0.4,
+      lean: -0.14,
+      spinRad: 0.5,
+    });
+    // skyline + clock ring + previous pose + current pose
+    expect(calls.filter((name) => name === "drawImage").length).toBeGreaterThan(
+      3,
     );
   });
 

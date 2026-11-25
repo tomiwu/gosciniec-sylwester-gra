@@ -20,11 +20,17 @@ describe("slowFactor", () => {
     expect(slowFactor(0)).toBe(1);
   });
 
-  it("grows as 1.5 to the power of the streak", () => {
+  it("grows as 1.5 to the power of the streak, then the cap applies", () => {
     expect(slowFactor(1)).toBeCloseTo(1.5, 8);
-    expect(slowFactor(2)).toBeCloseTo(2.25, 8);
-    expect(slowFactor(3)).toBeCloseTo(3.375, 8);
-    expect(slowFactor(4)).toBeCloseTo(5.0625, 8);
+    expect(slowFactor(2)).toBe(CLOCK.maxFactor);
+    expect(1.5 ** 2).toBeGreaterThan(CLOCK.maxFactor);
+  });
+
+  it("keeps a no-streak round near 25 s and a good streak near 40 s", () => {
+    expect(CLOCK.baseDurationMs).toBe(25_000);
+    expect(CLOCK.baseDurationMs * CLOCK.maxFactor).toBeCloseTo(40_000, 8);
+    expect(CLOCK.maxWallClockMs).toBeGreaterThanOrEqual(40_000);
+    expect(CLOCK.maxWallClockMs).toBeLessThanOrEqual(45_000);
   });
 
   it("applies the cap", () => {

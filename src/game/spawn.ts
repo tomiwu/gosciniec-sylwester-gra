@@ -1,4 +1,5 @@
-import { FIELD, ITEMS, PLAY } from "../config";
+import { DEPTH, ITEMS, PLAY } from "../config";
+import { placeItem, pickLane } from "./depth";
 import type { Item, ItemKind } from "./types";
 
 type Weights = Record<ItemKind, { readonly spawnWeight: number }>;
@@ -16,19 +17,14 @@ export function pickKind(roll: number, items: Weights = ITEMS): ItemKind {
   return "obstacle";
 }
 
-/** Create a new item above the field. `rand` returns values in [0, 1). */
+/** Create a new item at the far end of a floor lane. `rand` is in [0, 1). */
 export function spawnItem(id: number, rand: () => number): Item {
   const kind = pickKind(rand());
-  const span = FIELD.width - 2 * FIELD.edgePx;
-  return {
-    id,
-    kind,
-    x: FIELD.edgePx + rand() * span,
-    y: -FIELD.itemRadiusPx,
-  };
+  const lane = pickLane(rand());
+  return placeItem({ id, kind, lane, z: DEPTH.spawnZ });
 }
 
 export function isCaught(item: Item, playerX: number): boolean {
-  const distance = Math.hypot(item.x - playerX, item.y - FIELD.playerY);
-  return distance <= PLAY.catchRadiusPx;
+  if (item.z < DEPTH.catchMinZ || item.z > DEPTH.catchMaxZ) return false;
+  return Math.abs(item.x - playerX) <= PLAY.catchRadiusPx;
 }

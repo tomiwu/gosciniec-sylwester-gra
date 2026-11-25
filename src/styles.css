@@ -112,6 +112,8 @@ body {
 .event,
 .price-base,
 .price-deal,
+.price-share,
+.offer-meta,
 .code,
 .lock {
   margin: 0.4rem 0 0;
@@ -130,6 +132,8 @@ body {
 .lock,
 .price-base,
 .price-deal,
+.price-share,
+.offer-meta,
 .claim input {
   font-family: Georgia, "Times New Roman", serif;
 }
@@ -242,4 +246,76 @@ body {
 
 .claim.is-hidden {
   display: none;
+}
+
+.panel[data-screen="end"] .title {
+  margin-top: 0.35rem;
+  font-size: clamp(2rem, 9vw, 2.7rem);
+}
+
+.panel[data-screen="end"] .price {
+  margin-top: 0.55rem;
+  font-size: 1.55rem;
+}
+
+.ornament {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: min(16rem, 90%);
+  margin: 0.65rem auto 0;
+  color: var(--color-gold);
+  font-size: 0.8rem;
+  letter-spacing: 0.28em;
+}
+
+.ornament::before,
+.ornament::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-gold),
+    transparent
+  );
+}
+
+.offer-card {
+  margin: 0.7rem 0 0;
+  padding: 0.7rem 0.85rem 0.8rem;
+  border: 1px solid rgb(201 162 77 / 0.45);
+  background: rgb(11 10 9 / 0.45);
+}
+
+.offer-title {
+  margin: 0;
+  font-family: "GFS Didot", "Palatino Linotype", Palatino, serif;
+  font-size: 1.12rem;
+  letter-spacing: 0.05em;
+  color: var(--color-gold);
+}
+
+.offer-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.offer-prices {
+  display: grid;
+  gap: 0.12rem;
+  margin-top: 0.55rem;
+}
+
+.price-base,
+.price-deal,
+.price-share {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.price-share {
+  color: var(--color-gold);
 }

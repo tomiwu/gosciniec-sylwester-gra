@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FEEDBACK } from "../config";
-import { ageEffects, applyEvents, createEffects } from "./effects";
+import { ageEffects, applyEvents, catchSparks, createEffects } from "./effects";
 import type { GameEvent } from "./types";
 
 const catchEvent = (streak: number, factor: number): GameEvent => ({
@@ -17,6 +17,14 @@ describe("applyEvents", () => {
   it("adds a pop for a catch", () => {
     const fx = applyEvents(createEffects(), [catchEvent(1, 1.5)]);
     expect(fx.pops).toEqual([{ x: 50, y: 60, points: 10, ageMs: 0 }]);
+  });
+
+  it("bursts sparkles from a catch", () => {
+    const fx = applyEvents(createEffects(), [catchEvent(1, 1.5)]);
+    const burst = catchSparks(50, 60);
+    expect(fx.sparks).toHaveLength(burst.length);
+    expect(fx.sparks[0]).toMatchObject({ x: 50, y: 60, ageMs: 0 });
+    expect(burst.every((spark) => spark.lifeMs >= FEEDBACK.sparkMs)).toBe(true);
   });
 
   it("pulses gold when the clock slows", () => {
@@ -58,6 +66,15 @@ describe("ageEffects", () => {
     const mid = ageEffects(fx, 100);
     expect(mid.pops[0]?.ageMs).toBe(100);
     expect(ageEffects(mid, FEEDBACK.popMs).pops).toEqual([]);
+  });
+
+  it("moves sparkles and drops the old ones", () => {
+    const fx = applyEvents(createEffects(), [catchEvent(1, 1.5)]);
+    const mid = ageEffects(fx, 100);
+    expect(mid.sparks[0]?.ageMs).toBe(100);
+    expect(mid.sparks[0]?.y).not.toBe(60);
+    expect(mid.sparks.some((spark) => spark.x !== 50)).toBe(true);
+    expect(ageEffects(mid, FEEDBACK.sparkMs + 200).sparks).toEqual([]);
   });
 
   it("counts timers down and stops at 0", () => {

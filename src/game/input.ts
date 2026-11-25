@@ -37,7 +37,8 @@ export function createInput(sources: InputSources): GameInput {
   let left = false;
   let right = false;
   let pressed = false;
-  let targetX: number | null = null;
+  let lastX: number | null = null;
+  let pendingDx = 0;
   const subscriptions: [EventTarget, string, EventListener][] = [];
 
   const listen = (target: EventTarget, type: string, fn: EventListener) => {
@@ -52,13 +53,10 @@ export function createInput(sources: InputSources): GameInput {
     event.preventDefault();
     if (side === "left") left = down;
     else right = down;
-    if (down) targetX = null;
   };
 
   const point = (event: Event) =>
     sources.toFieldX((event as PointerEvent).clientX);
-  const isMouse = (event: Event) =>
-    (event as PointerEvent).pointerType === "mouse";
 
   listen(sources.keys, "keydown", onKey(true));
   listen(sources.keys, "keyup", onKey(false));
@@ -68,26 +66,30 @@ export function createInput(sources: InputSources): GameInput {
   });
   listen(sources.pointer, "pointerdown", (event) => {
     pressed = true;
-    targetX = point(event);
+    lastX = point(event);
   });
   listen(sources.pointer, "pointermove", (event) => {
-    if (pressed || isMouse(event)) targetX = point(event);
+    if (!pressed || lastX === null) return;
+    const x = point(event);
+    pendingDx += x - lastX;
+    lastX = x;
   });
-  const release = (event: Event) => {
+  const release = () => {
     pressed = false;
-    if (!isMouse(event)) targetX = null;
+    lastX = null;
   };
   listen(sources.pointer, "pointerup", release);
-  listen(sources.pointer, "pointercancel", (event) => {
-    release(event);
-    targetX = null;
-  });
+  listen(sources.pointer, "pointercancel", release);
 
   return {
-    read: () => ({
-      dir: (Number(right) - Number(left)) as -1 | 0 | 1,
-      targetX,
-    }),
+    read: () => {
+      const dragDx = pendingDx;
+      pendingDx = 0;
+      return {
+        dir: (Number(right) - Number(left)) as -1 | 0 | 1,
+        dragDx,
+      };
+    },
     dispose: () => {
       for (const [target, type, fn] of subscriptions) {
         target.removeEventListener(type, fn);

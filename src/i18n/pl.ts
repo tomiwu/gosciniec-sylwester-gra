@@ -19,6 +19,7 @@ export const pl = {
   book: "Zarezerwuj",
   priceRegular: "Cena regularna",
   priceWithCode: "Z kodem",
+  priceWithShare: "Za 5 poleceń",
   getCode: "Odbierz kod",
   discountUnlocked: "Kod zniżki 10% na bilet",
   discountReferral: "Kod zniżki 20% na bilet",
@@ -27,9 +28,11 @@ export const pl = {
   referralProgress: "Polecenia",
   copyLink: "Skopiuj link polecający",
   howTo:
-    "Przesuwaj parę w lewo i w prawo. Łap przedmioty. Omijaj przeszkody. Seria złowień spowalnia zegar.",
+    "Przeciągnij palcem, żeby prowadzić parę. Łap przedmioty. Omijaj przeszkody. Seria złowień spowalnia zegar.",
   localOnly: "Wyniki zapisujemy lokalnie, dopóki hotel nie podłączy serwera.",
   eventWhen: "31.12.2026, godz. 20:00",
+  dj: "DJ Letsky",
+  address: "ul. Sienkiewicza 137, Uniejów",
 } as const;
 
 export type PlKey = keyof typeof pl;

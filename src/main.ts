@@ -1,12 +1,8 @@
-import {
-  FIELD,
-  OFFER,
-  REWARD,
-  discountedPrice,
-  formatOfferPrice,
-} from "./config";
+import { FEEDBACK, FIELD, OFFER, REWARD, formatOfferPrice } from "./config";
+import { catchSparks, createEffects, type Effects } from "./game/effects";
 import { createMockBackend } from "./backend/mock";
 import { logoUrl, loadArt, type GameArt } from "./game/art";
+import { placeItem } from "./game/depth";
 import { createGame } from "./game/game";
 import { clientToFieldX, createInput } from "./game/input";
 import { runRound } from "./game/session";
@@ -69,14 +65,15 @@ function midShotState(): GameState {
   const base = createGame();
   return {
     ...base,
-    remainingMs: 22_000,
+    remainingMs: 18_000,
     score: 120,
     streak: 3,
+    spawnTimerMs: 0,
     items: [
-      { id: 1, kind: "glass", x: 90, y: 180 },
-      { id: 2, kind: "star", x: 200, y: 280 },
-      { id: 3, kind: "clock", x: 300, y: 120 },
-      { id: 4, kind: "obstacle", x: 150, y: 60 },
+      placeItem({ id: 1, kind: "glass", lane: 0, z: 0.72 }),
+      placeItem({ id: 2, kind: "star", lane: 3, z: 0.48 }),
+      placeItem({ id: 3, kind: "clock", lane: 4, z: 0.28 }),
+      placeItem({ id: 4, kind: "obstacle", lane: 1, z: 0.34 }),
     ],
     nextId: 5,
   };
@@ -93,13 +90,35 @@ function endShotState(): GameState {
   };
 }
 
-function priceBlock(percent: number): string {
+function offerCard(percent: number): string {
   const regular = `${pl.priceRegular}: ${formatOfferPrice(OFFER.price)}`;
-  if (percent <= 0) {
-    return `<p class="price-base">${regular}</p><p class="lock">${pl.discountLocked}</p>`;
-  }
-  const deal = `${pl.priceWithCode} ${percent}%: ${formatOfferPrice(discountedPrice(percent))}`;
-  return `<p class="price-base">${regular}</p><p class="price-deal">${deal}</p>`;
+  const withCode = `${pl.priceWithCode} 10%: ${formatOfferPrice(OFFER.priceWithCode)}`;
+  const withShare = `${pl.priceWithShare}: ${formatOfferPrice(OFFER.priceWithShare)}`;
+  const lock = percent <= 0 ? `<p class="lock">${pl.discountLocked}</p>` : "";
+  return `<div class="offer-card">
+    <p class="offer-title">${pl.title} ${pl.year}</p>
+    <p class="offer-meta">${pl.eventWhen}</p>
+    <p class="offer-meta">${pl.dj}</p>
+    <p class="offer-meta">${pl.address}</p>
+    <div class="offer-prices">
+      <p class="price-base">${regular}</p>
+      <p class="price-deal">${withCode}</p>
+      <p class="price-share">${withShare}</p>
+    </div>
+    ${lock}
+  </div>`;
+}
+
+function playShotEffects(): Effects {
+  return {
+    ...createEffects(),
+    pops: [{ x: 210, y: 560, points: 15, ageMs: 90 }],
+    sparks: catchSparks(200, 580).map((spark, i) => ({
+      ...spark,
+      ageMs: 40 + i * 6,
+    })),
+    pulseMs: Math.round(FEEDBACK.pulseMs * 0.7),
+  };
 }
 
 function bindClaim(state: GameState): void {
@@ -157,7 +176,8 @@ function showResult(state: GameState): void {
     ${brandLogo()}
     <h2 class="title">${pl.midnight}</h2>
     <p class="price">${pl.score}: ${state.score}</p>
-    ${priceBlock(percent)}
+    <p class="ornament">✦</p>
+    ${offerCard(percent)}
     ${claim}
     <div class="actions">
       <button type="button" class="btn" id="play">${pl.playAgain}</button>
@@ -217,7 +237,16 @@ export async function startGame(): Promise<void> {
     ctx,
     input,
     art,
-    ...(shotPlay ? { createState: midShotState } : {}),
+    ...(shotPlay
+      ? {
+          createState: midShotState,
+          initialEffects: playShotEffects(),
+          seedMotion: { catchAgeMs: 120, spinAgeMs: 30 },
+          ...(params.get("pause") === "1"
+            ? { pauseAfterFirstFrame: true }
+            : {}),
+        }
+      : {}),
     requestFrame: (cb) => requestAnimationFrame(cb),
     cancelFrame: (handle) => cancelAnimationFrame(handle),
     rand: Math.random,
