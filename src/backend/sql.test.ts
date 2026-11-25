@@ -67,10 +67,16 @@ describe("supabase migrations", () => {
     );
   });
 
-  it("let anon call only issue_code and leaderboard", () => {
+  it("let anon call only the player RPCs", () => {
     const found = grants();
-    expect(found.get("issue_code")).toBe("anon, authenticated");
-    expect(found.get("leaderboard")).toBe("anon, authenticated");
+    for (const name of [
+      "issue_code",
+      "leaderboard",
+      "referral_status",
+      "record_referral_finish",
+    ]) {
+      expect(found.get(name)).toBe("anon, authenticated");
+    }
     for (const name of [
       "check_code",
       "redeem_code",
@@ -81,27 +87,28 @@ describe("supabase migrations", () => {
       expect(found.get(name)).toBe("authenticated");
       expect(all).toContain(`create function public.${name}(`);
     }
-    expect(found.size).toBe(7);
+    expect(found.size).toBe(9);
   });
 
   it("revoke the default function grants before the grants", () => {
     const revokes = all.match(/^revoke all on function public\.\w+\(/gm);
-    expect(revokes).toHaveLength(7);
+    expect(revokes).toHaveLength(9);
     expect(all).toContain(
       "revoke all on all functions in schema syl_private from public, anon, authenticated;",
     );
   });
 
   it("turn on RLS for every table and give anon no table access", () => {
-    const tables = [...all.matchAll(/^create table public\.(\w+)/gm)].map(
-      (m) => m[1],
-    );
+    const tables = [
+      ...all.matchAll(/^create table (?:if not exists )?public\.(\w+)/gm),
+    ].map((m) => m[1]);
     expect(tables).toEqual([
       "scores",
       "codes",
       "referrals",
       "redemptions",
       "staff",
+      "referral_links",
     ]);
     for (const table of tables) {
       expect(all).toContain(
@@ -115,6 +122,11 @@ describe("supabase migrations", () => {
   it("check the staff in every staff function", () => {
     const staffCalls = all.match(/perform syl_private\.require_staff\(\);/g);
     expect(staffCalls).toHaveLength(5);
+  });
+
+  it("keep the referral token shape the same as the client", () => {
+    expect(all).toContain("check (token ~ '^[2-9A-HJ-NP-Z]{10}$')");
+    expect(all).toContain("count(distinct r.device_id)");
   });
 
   it("do not contain a service role key", () => {

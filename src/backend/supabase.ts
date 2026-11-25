@@ -8,6 +8,7 @@ import {
   type CodeStatus,
   type DashboardStats,
   type DiscountKind,
+  type ReferralStatus,
   type ScoreBackend,
   type ScoreRow,
   type StaffBackend,
@@ -155,7 +156,22 @@ function submitArgs(input: SubmitInput): Row {
   };
 }
 
-/** Player side. `issue_code` and `leaderboard` are the only RPCs that anon may call. */
+function toReferralStatus(row: unknown): ReferralStatus | null {
+  if (row === null || typeof row !== "object") return null;
+  const data = row as Row;
+  if (typeof data.token !== "string" || data.token === "") return null;
+  return {
+    token: data.token,
+    progress: Number(data.referral_progress),
+    needed: Number(data.referral_needed),
+    discountPercent: Number(data.discount_percent),
+  };
+}
+
+/**
+ * Player side. Anon may call only `issue_code`, `leaderboard`, `referral_status` and `record_referral_finish`.
+ * The referral calls return null or false when the server does not have them yet (older database).
+ */
 export function createSupabaseBackend(config: SupabaseConfig): ScoreBackend {
   const target: RpcTarget = { ...config, token: config.anonKey };
   return {
@@ -168,6 +184,19 @@ export function createSupabaseBackend(config: SupabaseConfig): ScoreBackend {
       const rows = await rpc(target, "leaderboard", { p_limit: limit });
       return (rows as Row[]).map(toScoreRow);
     },
+    referralStatus: (code) =>
+      rpc(target, "referral_status", { p_code: normalizeCode(code) }).then(
+        toReferralStatus,
+        () => null,
+      ),
+    recordReferralFinish: (token, deviceId) =>
+      rpc(target, "record_referral_finish", {
+        p_token: token,
+        p_device_id: deviceId,
+      }).then(
+        (counted) => counted === true,
+        () => false,
+      ),
   };
 }
 

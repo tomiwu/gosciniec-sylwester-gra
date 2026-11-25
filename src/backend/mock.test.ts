@@ -242,6 +242,57 @@ describe("createMockBackend referrals", () => {
   });
 });
 
+describe("createMockBackend referral links", () => {
+  async function owner() {
+    let n = 0;
+    const backend = createMockBackend({
+      now: () => DECEMBER,
+      randomInt: (max) => (n++ * 7) % max,
+    });
+    const { code } = await backend.submit(play());
+    const status = await backend.referralStatus(code);
+    return { backend, code, token: status?.token ?? "" };
+  }
+
+  it("gives a stable 10-character token that is not the code", async () => {
+    const { backend, code, token } = await owner();
+    expect(token).toMatch(/^[2-9A-HJ-NP-Z]{10}$/);
+    expect(token).not.toContain(code.slice(4));
+    expect((await backend.referralStatus(code))?.token).toBe(token);
+  });
+
+  it("returns null for an unknown code", async () => {
+    const { backend } = await owner();
+    await expect(backend.referralStatus("SYL-ZZZZ")).resolves.toBeNull();
+  });
+
+  it("counts each referred device once and gives 299 zl after 5", async () => {
+    const { backend, code, token } = await owner();
+    expect(await backend.recordReferralFinish(token, "friend-0")).toBe(true);
+    expect(await backend.recordReferralFinish(token, "friend-0")).toBe(false);
+    for (let i = 1; i < 5; i += 1) {
+      await backend.recordReferralFinish(token.toLowerCase(), `friend-${i}`);
+    }
+    await backend.recordReferralFinish(token, "friend-9");
+    expect(await backend.referralStatus(code)).toMatchObject({
+      progress: 5,
+      needed: 5,
+      discountPercent: REWARD.referralPercent,
+    });
+    expect((await backend.check(code)).pricePerPerson).toBe(299);
+  });
+
+  it("does not count the owner device, a bad device or a bad token", async () => {
+    const { backend, code, token } = await owner();
+    expect(await backend.recordReferralFinish(token, play().deviceId)).toBe(
+      false,
+    );
+    expect(await backend.recordReferralFinish(token, "")).toBe(false);
+    expect(await backend.recordReferralFinish("ZZZZZZZZZZ", "d2")).toBe(false);
+    expect((await backend.referralStatus(code))?.progress).toBe(0);
+  });
+});
+
 describe("createMockBackend staff tools", () => {
   it("lists codes and counts stats", async () => {
     const time = clock(DECEMBER);

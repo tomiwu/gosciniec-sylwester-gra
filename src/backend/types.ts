@@ -24,10 +24,22 @@ export type ScoreRow = {
   score: number;
 };
 
+/** Referral state of one code. The token goes into the share link (`?ref=`), never the code. */
+export type ReferralStatus = {
+  token: string;
+  progress: number;
+  needed: number;
+  discountPercent: number;
+};
+
 /** Player side: the anon role may call only these. */
 export type ScoreBackend = {
   submit(input: SubmitInput): Promise<SubmitResult>;
   top(limit: number): Promise<ScoreRow[]>;
+  /** Null when the code is unknown or the server does not have the referral RPCs yet. */
+  referralStatus(code: string): Promise<ReferralStatus | null>;
+  /** True when this device counts as a new referred player for the token owner. */
+  recordReferralFinish(token: string, deviceId: string): Promise<boolean>;
 };
 
 export type CodeStatus = "valid" | "already_used" | "unknown" | "expired";

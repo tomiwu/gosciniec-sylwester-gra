@@ -151,6 +151,8 @@ export const OFFER = {
   dj: "DJ Letsky",
   address: "ul. Sienkiewicza 137, 99-210 Uniejów",
   phones: ["63 28 88 410", "602 260 965"],
+  /** Reception phone in the header of https://gosciniecuniejow.pl/ (read 25 Nov 2026). */
+  reservationPhone: "+48 63 28 88 628",
   email: "gosciniecuniejow@gmail.com",
   /** Replace this URL when Tomasz gives the booking page. */
   bookingUrl: "mailto:gosciniecuniejow@gmail.com",
