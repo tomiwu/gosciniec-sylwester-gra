@@ -144,6 +144,14 @@ export const LEADERBOARD = {
   topN: 20,
 } as const;
 
+/** Staff panel at /panel/. Sign-in is with Kody. */
+export const STAFF = {
+  /** Kody usernames or Kody user ids that can use the panel. Tomasz adds reception accounts. */
+  allowList: ["tomiwu"],
+  /** Local dev only: the mock Kody user. Set another user with ?kodyUser=<name>. */
+  mockUsername: "tomiwu",
+} as const;
+
 /**
  * Return the clock slow factor for a catch streak.
  * streak 0 => minFactor (usually 1).

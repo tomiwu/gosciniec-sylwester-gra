@@ -1,0 +1,21 @@
+.panel.staff {
+  width: min(40rem, 100%);
+}
+
+.staff-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.staff-nav .nav-item[aria-current="page"] {
+  background: var(--color-gold);
+  color: var(--color-dark);
+}
+
+.staff-main {
+  border-top: 1px solid rgb(201 162 77 / 0.4);
+  padding-top: 1rem;
+}

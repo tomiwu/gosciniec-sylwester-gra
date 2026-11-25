@@ -1,4 +1,4 @@
-/** Player-facing text. Keep this the only Polish in the source tree. */
+/** Player-facing and staff-facing text. Keep this the only Polish in the source tree. */
 export const pl = {
   hotel: "Gościniec Uniejów",
   title: "Sylwester",
@@ -34,6 +34,17 @@ export const pl = {
   dj: "DJ Letsky",
   address: "ul. Sienkiewicza 137, Uniejów",
   photoCredits: "Zdjęcia: Gościniec Uniejów, Masandro, Annkes, Beemwej",
+  panelTitle: "Panel recepcji",
+  panelSignIn: "Zaloguj się przez Kody",
+  panelSignOut: "Wyloguj",
+  panelLoginHint: "Panel tylko dla obsługi hotelu.",
+  panelSignedInAs: "Zalogowano jako",
+  panelNoAccess: "Brak dostępu",
+  panelNoAccessHint: "To konto Kody nie jest na liście obsługi hotelu.",
+  panelNavCheck: "Sprawdź kod",
+  panelNavList: "Lista kodów",
+  panelNavRanking: "Ranking",
+  panelSoon: "Ta funkcja będzie dostępna wkrótce.",
 } as const;
 
 export type PlKey = keyof typeof pl;
