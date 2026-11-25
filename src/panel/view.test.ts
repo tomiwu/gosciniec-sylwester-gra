@@ -73,6 +73,30 @@ describe("renderPanel", () => {
     expect(html).not.toContain("code-check-form");
   });
 
+  it("shows the code list view in the list section", () => {
+    const shell = {
+      session: staff,
+      allowList: allow,
+      section: "list" as const,
+    };
+    const html = renderPanel(
+      shell,
+      '<form id="code-check-form"></form>',
+      '<div class="code-list-view"></div>',
+    );
+    expect(html).toContain('<div class="code-list-view"></div>');
+    expect(html).not.toContain("code-check-form");
+    expect(html).not.toContain(pl.panelSoon);
+  });
+
+  it("never shows the code list view without a staff session", () => {
+    const view = '<div class="code-list-view"></div>';
+    const login = { session: null, allowList: allow, section: "list" as const };
+    expect(renderPanel(login, "", view)).not.toContain("code-list-view");
+    const denied = { ...login, session: guest };
+    expect(renderPanel(denied, "", view)).not.toContain("code-list-view");
+  });
+
   it("never shows the code check view without a staff session", () => {
     const view = '<form id="code-check-form"></form>';
     const login = {

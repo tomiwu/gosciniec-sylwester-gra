@@ -66,6 +66,24 @@ export const pl = {
   panelRedeemDone: "Kod oznaczono jako wykorzystany.",
   panelRedeemFailed:
     "Nie udało się oznaczyć kodu. Kod nie został zmieniony. Spróbuj ponownie za chwilę.",
+  panelCountPlayers: "Gracze",
+  panelCountIssued: "Kody wydane",
+  panelCountUsed: "Kody wykorzystane",
+  panelCountReferrals: "Polecenia",
+  panelCountsLabel: "Podsumowanie promocji",
+  panelFilterStatus: "Status",
+  panelFilterKind: "Rodzaj zniżki",
+  panelFilterAll: "Wszystkie",
+  panelFilterBonus: "Bonus",
+  panelFilterFrom: "Data uzyskania od",
+  panelFilterTo: "Data uzyskania do",
+  panelListRefresh: "Odśwież",
+  panelListShown: "Pokazano",
+  panelListLoading: "Wczytywanie listy kodów…",
+  panelListEmpty: "Nie wydano jeszcze żadnego kodu.",
+  panelListNoMatch: "Brak kodów dla wybranych filtrów.",
+  panelListFailed:
+    "Nie udało się wczytać listy kodów. Sprawdź połączenie i spróbuj ponownie za chwilę.",
 } as const;
 
 export type PlKey = keyof typeof pl;

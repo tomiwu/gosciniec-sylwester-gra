@@ -61,15 +61,16 @@ function navButton(section: PanelSection, current: PanelSection): string {
   return `<button type="button" class="btn secondary nav-item" data-section="${section}"${mark}>${SECTION_LABELS[section]}</button>`;
 }
 
-function sectionBody(state: PanelState, checkView: string): string {
-  if (state.section === "check" && checkView) return checkView;
-  return `<p class="note">${pl.panelSoon}</p>`;
+type SectionViews = Partial<Record<PanelSection, string>>;
+
+function sectionBody(state: PanelState, views: SectionViews): string {
+  return views[state.section] || `<p class="note">${pl.panelSoon}</p>`;
 }
 
 function shellView(
   state: PanelState,
   session: KodySession,
-  checkView: string,
+  views: SectionViews,
 ): string {
   const nav = PANEL_SECTIONS.map((s) => navButton(s, state.section)).join("");
   return `<section class="panel staff" data-screen="shell">
@@ -81,18 +82,23 @@ function shellView(
     <nav class="actions staff-nav" aria-label="${pl.panelTitle}">${nav}</nav>
     <main class="staff-main" data-section="${state.section}">
       <h2 class="subtitle">${SECTION_LABELS[state.section]}</h2>
-      ${sectionBody(state, checkView)}
+      ${sectionBody(state, views)}
     </main>
   </section>`;
 }
 
 /**
  * HTML for the panel. Only an allow-listed Kody session gets the staff shell.
- * `checkView` is the code-check HTML for the check section.
+ * `checkView` is the code-check HTML for the check section and `listView`
+ * is the code-list HTML for the list section.
  */
-export function renderPanel(state: PanelState, checkView = ""): string {
+export function renderPanel(
+  state: PanelState,
+  checkView = "",
+  listView = "",
+): string {
   const { session } = state;
   if (!session) return loginView();
   if (!isStaff(session, state.allowList)) return deniedView(session);
-  return shellView(state, session, checkView);
+  return shellView(state, session, { check: checkView, list: listView });
 }

@@ -154,6 +154,14 @@ export const STAFF = {
   api: {
     checkPath: "/api/staff/check",
     redeemPath: "/api/staff/redeem",
+    /** GET with ?limit=&offset=. Rows have the `list_codes` shape. */
+    listPath: "/api/staff/codes",
+    /** GET. Body has the `dashboard_stats` shape. */
+    statsPath: "/api/staff/stats",
+    /** Same as the `list_codes` maximum page size. */
+    listPageSize: 500,
+    /** Safety stop: the client reads at most this many pages (10 000 codes). */
+    listMaxPages: 20,
   },
   /**
    * First instant when a code is expired: 1 January 2027 00:00 Europe/Warsaw (CET, UTC+1).

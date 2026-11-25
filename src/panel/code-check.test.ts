@@ -11,11 +11,11 @@ import {
   type CodeCheckState,
 } from "./code-check";
 import { MOCK_CODES, createMockStaffApi } from "./mock-staff-api";
-import type { CodeCheck, StaffApi } from "./staff-api";
+import type { CodeCheck, CodeCheckApi } from "./staff-api";
 
 const BEFORE_END = new Date("2026-12-20T12:00:00.000Z");
 
-function setup(api?: StaffApi) {
+function setup(api?: CodeCheckApi) {
   const states: CodeCheckState[] = [];
   const staffApi =
     api ?? createMockStaffApi({ codes: MOCK_CODES, now: () => BEFORE_END });
@@ -27,7 +27,7 @@ function setup(api?: StaffApi) {
   return { view, states, last };
 }
 
-function failingApi(): StaffApi {
+function failingApi(): CodeCheckApi {
   return {
     checkCode: () => Promise.reject(new Error("down")),
     redeemCode: () => Promise.reject(new Error("down")),
@@ -127,7 +127,7 @@ describe("createCodeCheck", () => {
       codes: MOCK_CODES,
       now: () => BEFORE_END,
     });
-    const api: StaffApi = {
+    const api: CodeCheckApi = {
       checkCode: mock.checkCode,
       redeemCode: (code) => {
         redeemCalls += 1;
@@ -146,7 +146,7 @@ describe("createCodeCheck", () => {
 
   it("ignores a second redeem while the first one runs", async () => {
     let redeemCalls = 0;
-    const api: StaffApi = {
+    const api: CodeCheckApi = {
       checkCode: () => Promise.resolve(VALID),
       redeemCode: () => {
         redeemCalls += 1;
@@ -163,7 +163,7 @@ describe("createCodeCheck", () => {
   });
 
   it("shows the new state when the backend refuses the redeem", async () => {
-    const api: StaffApi = {
+    const api: CodeCheckApi = {
       checkCode: () => Promise.resolve(VALID),
       redeemCode: () =>
         Promise.resolve({
@@ -191,7 +191,7 @@ describe("createCodeCheck", () => {
   });
 
   it("keeps the result and shows a calm error when the redeem call fails", async () => {
-    const api: StaffApi = {
+    const api: CodeCheckApi = {
       checkCode: () => Promise.resolve(VALID),
       redeemCode: () => Promise.reject(new Error("down")),
     };

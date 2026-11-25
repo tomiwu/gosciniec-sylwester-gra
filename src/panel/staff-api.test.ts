@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { STAFF } from "../config";
-import { StaffApiError, createHttpStaffApi, parseCheck } from "./staff-api";
+import {
+  StaffApiError,
+  createHttpStaffApi,
+  parseCheck,
+  parseListEntry,
+  parseStats,
+  statusAt,
+} from "./staff-api";
 
 const VALID_ROW = {
   code: "SYL-AB2C",
@@ -125,6 +132,180 @@ describe("createHttpStaffApi", () => {
     const broken = fakeFetch(() => new Response("<html>", { status: 200 })).fn;
     await expect(
       createHttpStaffApi(broken).redeemCode("SYL-AB2C"),
+    ).rejects.toBeInstanceOf(StaffApiError);
+  });
+});
+
+const LIST_ROW = {
+  code: "SYL-AB2C",
+  nickname: "TestPlayer1",
+  score: 240,
+  kind: "base",
+  referrals: 2,
+  earned_at: "2026-11-20T18:30:00.000Z",
+  used_at: null,
+};
+
+describe("parseListEntry", () => {
+  it("maps a list_codes row to a CodeListEntry", () => {
+    expect(parseListEntry(LIST_ROW)).toEqual({
+      code: "SYL-AB2C",
+      nickname: "TestPlayer1",
+      score: 240,
+      kind: "base",
+      referrals: 2,
+      earnedAt: "2026-11-20T18:30:00.000Z",
+      usedAt: null,
+    });
+  });
+
+  it("keeps no device id or other field that the list does not show", () => {
+    const entry = parseListEntry({
+      ...LIST_ROW,
+      device_id: "device-test-1",
+      referred_by: "SYL-ZZZZ",
+    });
+    expect(Object.keys(entry).sort()).toEqual([
+      "code",
+      "earnedAt",
+      "kind",
+      "nickname",
+      "referrals",
+      "score",
+      "usedAt",
+    ]);
+    expect(JSON.stringify(entry)).not.toContain("device-test-1");
+  });
+
+  it("rejects a row with a missing code, nickname, kind, date or a bad count", () => {
+    expect(() => parseListEntry(null)).toThrow(StaffApiError);
+    expect(() => parseListEntry({ ...LIST_ROW, code: 1 })).toThrow(
+      StaffApiError,
+    );
+    expect(() => parseListEntry({ ...LIST_ROW, nickname: null })).toThrow(
+      StaffApiError,
+    );
+    expect(() => parseListEntry({ ...LIST_ROW, kind: "gold" })).toThrow(
+      StaffApiError,
+    );
+    expect(() => parseListEntry({ ...LIST_ROW, earned_at: null })).toThrow(
+      StaffApiError,
+    );
+    expect(() => parseListEntry({ ...LIST_ROW, referrals: -1 })).toThrow(
+      StaffApiError,
+    );
+    expect(() => parseListEntry({ ...LIST_ROW, score: "240" })).toThrow(
+      StaffApiError,
+    );
+  });
+});
+
+describe("parseStats", () => {
+  it("maps the dashboard_stats body", () => {
+    expect(
+      parseStats({ players: 12, codes: 8, share_codes: 3, redeemed: 2 }),
+    ).toEqual({ players: 12, codes: 8, shareCodes: 3, redeemed: 2 });
+  });
+
+  it("rejects a count that is missing or not a whole number", () => {
+    expect(() => parseStats({ players: 1, codes: 1, share_codes: 0 })).toThrow(
+      StaffApiError,
+    );
+    expect(() =>
+      parseStats({ players: 1.5, codes: 1, share_codes: 0, redeemed: 0 }),
+    ).toThrow(StaffApiError);
+  });
+});
+
+describe("statusAt", () => {
+  const end = Date.parse(STAFF.codeExpiresAtIso);
+
+  it("is valid until 31 December 2026, 23:59:59 Warsaw time", () => {
+    expect(statusAt(null, new Date(end - 1000))).toBe("valid");
+    expect(statusAt(null, new Date(end))).toBe("expired");
+  });
+
+  it("is already used for a used code, also after the end date", () => {
+    const used = "2026-12-01T10:00:00.000Z";
+    expect(statusAt(used, new Date(end - 1000))).toBe("already_used");
+    expect(statusAt(used, new Date(end + 1000))).toBe("already_used");
+  });
+});
+
+describe("createHttpStaffApi list and stats", () => {
+  function rows(count: number, offset: number) {
+    return Array.from({ length: count }, (_, i) => ({
+      ...LIST_ROW,
+      code: `SYL-T${String(offset + i).padStart(3, "0")}`,
+    }));
+  }
+
+  it("gets the code list from the same-origin route", async () => {
+    const { fn, calls } = fakeFetch(() => jsonResponse([LIST_ROW]));
+    const list = await createHttpStaffApi(fn).listCodes();
+    expect(list).toHaveLength(1);
+    expect(list[0]?.code).toBe("SYL-AB2C");
+    expect(calls).toHaveLength(1);
+    const [call] = calls;
+    expect(call?.url).toBe(
+      `${STAFF.api.listPath}?limit=${STAFF.api.listPageSize}&offset=0`,
+    );
+    expect(call?.url.startsWith("/")).toBe(true);
+    expect(call?.init?.method).toBe("GET");
+    expect(call?.init?.credentials).toBe("same-origin");
+    expect(call?.init?.body).toBeUndefined();
+  });
+
+  it("reads every page until a short page", async () => {
+    const size = STAFF.api.listPageSize;
+    let offset = 0;
+    const { fn, calls } = fakeFetch(() => {
+      const page = rows(offset === 0 ? size : 2, offset);
+      offset += size;
+      return jsonResponse(page);
+    });
+    const list = await createHttpStaffApi(fn).listCodes();
+    expect(list).toHaveLength(size + 2);
+    expect(calls.map((c) => c.url)).toEqual([
+      `${STAFF.api.listPath}?limit=${size}&offset=0`,
+      `${STAFF.api.listPath}?limit=${size}&offset=${size}`,
+    ]);
+  });
+
+  it("stops after the page limit when the server always sends a full page", async () => {
+    const size = STAFF.api.listPageSize;
+    const { fn, calls } = fakeFetch(() => jsonResponse(rows(size, 0)));
+    const list = await createHttpStaffApi(fn).listCodes();
+    expect(calls).toHaveLength(STAFF.api.listMaxPages);
+    expect(list).toHaveLength(size * STAFF.api.listMaxPages);
+  });
+
+  it("returns an empty list for an empty page", async () => {
+    const { fn } = fakeFetch(() => jsonResponse([]));
+    expect(await createHttpStaffApi(fn).listCodes()).toEqual([]);
+  });
+
+  it("throws a StaffApiError when the list body is not an array", async () => {
+    const { fn } = fakeFetch(() => jsonResponse({ rows: [] }));
+    await expect(createHttpStaffApi(fn).listCodes()).rejects.toBeInstanceOf(
+      StaffApiError,
+    );
+  });
+
+  it("gets the counts from the same-origin stats route", async () => {
+    const body = { players: 4, codes: 3, share_codes: 1, redeemed: 1 };
+    const { fn, calls } = fakeFetch(() => jsonResponse(body));
+    const stats = await createHttpStaffApi(fn).dashboardStats();
+    expect(stats).toEqual({ players: 4, codes: 3, shareCodes: 1, redeemed: 1 });
+    expect(calls[0]?.url).toBe(STAFF.api.statsPath);
+    expect(calls[0]?.init?.method).toBe("GET");
+    expect(calls[0]?.init?.credentials).toBe("same-origin");
+  });
+
+  it("throws a StaffApiError when the stats route fails", async () => {
+    const { fn } = fakeFetch(() => jsonResponse({ error: "x" }, 401));
+    await expect(
+      createHttpStaffApi(fn).dashboardStats(),
     ).rejects.toBeInstanceOf(StaffApiError);
   });
 });

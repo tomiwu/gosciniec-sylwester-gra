@@ -7,8 +7,10 @@ import {
 } from "./auth";
 import { INITIAL_CODE_CHECK, createCodeCheck } from "./code-check";
 import { renderCodeCheck } from "./code-check-view";
+import { INITIAL_CODE_LIST, createCodeList, parseFilter } from "./code-list";
+import { renderCodeList } from "./code-list-view";
 import { createPanel, isPanelSection, type PanelState } from "./controller";
-import { MOCK_CODES, createMockStaffApi } from "./mock-staff-api";
+import { MOCK_CODES, MOCK_PLAYERS, createMockStaffApi } from "./mock-staff-api";
 import { createHttpStaffApi, type StaffApi } from "./staff-api";
 import { renderPanel } from "./view";
 import "../styles.css";
@@ -32,23 +34,40 @@ function sessionStore(): SessionStorageLike {
 /** Local dev has no Kody fetch handler, so it uses the mock staff API (issue #17 adds the handler). */
 function staffApi(): StaffApi {
   if (import.meta.env.DEV) {
-    return createMockStaffApi({ codes: MOCK_CODES, now: () => new Date() });
+    return createMockStaffApi({
+      codes: MOCK_CODES,
+      players: MOCK_PLAYERS,
+      now: () => new Date(),
+    });
   }
   return createHttpStaffApi((input, init) => window.fetch(input, init));
 }
 
 let panelState: PanelState | null = null;
 let checkState = INITIAL_CODE_CHECK;
+let listState = INITIAL_CODE_LIST;
 
 function draw(): void {
   if (!panelState) return;
-  app.innerHTML = renderPanel(panelState, renderCodeCheck(checkState));
+  app.innerHTML = renderPanel(
+    panelState,
+    renderCodeCheck(checkState),
+    renderCodeList(listState, new Date()),
+  );
 }
 
+const api = staffApi();
 const codeCheck = createCodeCheck({
-  api: staffApi(),
+  api,
   render: (state) => {
     checkState = state;
+    draw();
+  },
+});
+const codeList = createCodeList({
+  api,
+  render: (state) => {
+    listState = state;
     draw();
   },
 });
@@ -77,9 +96,21 @@ app.addEventListener("click", (event) => {
   if (button.id === "login") void panel.signIn();
   else if (button.id === "logout") {
     codeCheck.reset();
+    codeList.reset();
     void panel.signOut();
   } else if (button.id === "redeem") void codeCheck.redeem();
-  else if (isPanelSection(section)) panel.select(section);
+  else if (button.id === "code-list-refresh") void codeList.load();
+  else if (isPanelSection(section)) {
+    panel.select(section);
+    if (section === "list") void codeList.load();
+  }
+});
+
+app.addEventListener("change", (event) => {
+  const form =
+    event.target instanceof Element ? event.target.closest("form") : null;
+  if (!form || form.id !== "code-list-filter") return;
+  codeList.setFilter(parseFilter(Object.fromEntries(new FormData(form))));
 });
 
 app.addEventListener("submit", (event) => {

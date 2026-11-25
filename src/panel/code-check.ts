@@ -5,7 +5,7 @@ import {
   type CodeCheck,
   type CodeStatus,
   type DiscountKind,
-  type StaffApi,
+  type CodeCheckApi,
 } from "./staff-api";
 
 /** `empty` = no code typed. `check` / `redeem` = the staff API call failed. */
@@ -76,7 +76,7 @@ export function canRedeem(state: CodeCheckState): boolean {
  * It talks only to the staff API client.
  */
 export function createCodeCheck(options: {
-  api: StaffApi;
+  api: CodeCheckApi;
   render: (state: CodeCheckState) => void;
 }) {
   const { api, render } = options;

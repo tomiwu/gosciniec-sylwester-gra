@@ -1,8 +1,9 @@
-import { STAFF } from "../config";
 import {
   normalizeCode,
+  statusAt,
   type CodeCheck,
-  type CodeStatus,
+  type CodeListEntry,
+  type DashboardStats,
   type DiscountKind,
   type StaffApi,
 } from "./staff-api";
@@ -11,7 +12,9 @@ import {
 export type MockCode = {
   code: string;
   nickname: string;
+  score: number;
   kind: DiscountKind;
+  referrals: number;
   earnedAt: string;
   usedAt: string | null;
 };
@@ -21,33 +24,43 @@ export const MOCK_CODES: readonly MockCode[] = [
   {
     code: "SYL-AB2C",
     nickname: "TestPlayer1",
+    score: 230,
     kind: "base",
+    referrals: 1,
     earnedAt: "2026-11-20T18:30:00.000Z",
     usedAt: null,
   },
   {
     code: "SYL-PX7K",
     nickname: "TestPlayer2",
+    score: 265,
     kind: "share",
+    referrals: 5,
     earnedAt: "2026-11-21T09:05:00.000Z",
     usedAt: null,
   },
   {
     code: "SYL-USED",
     nickname: "TestPlayer3",
+    score: 215,
     kind: "base",
+    referrals: 0,
     earnedAt: "2026-11-19T20:00:00.000Z",
     usedAt: "2026-11-24T15:45:00.000Z",
   },
+  {
+    code: "SYL-QR4M",
+    nickname: "TestPlayer4",
+    score: 280,
+    kind: "share",
+    referrals: 6,
+    earnedAt: "2026-11-22T21:10:00.000Z",
+    usedAt: "2026-11-25T11:20:00.000Z",
+  },
 ];
 
-/** Same rule as `check_code`: a used code stays used after the end date. */
-function statusOf(entry: MockCode, now: Date): CodeStatus {
-  if (entry.usedAt !== null) return "already_used";
-  return now.getTime() >= Date.parse(STAFF.codeExpiresAtIso)
-    ? "expired"
-    : "valid";
-}
+/** Invented player count for local dev. Not every player earns a code. */
+export const MOCK_PLAYERS = 9;
 
 function unknownCheck(code: string): CodeCheck {
   return {
@@ -67,19 +80,39 @@ function toCheck(
 ): CodeCheck {
   if (!entry) return unknownCheck(code);
   const { nickname, kind, earnedAt, usedAt } = entry;
-  const status = statusOf(entry, now);
+  const status = statusAt(entry.usedAt, now);
   return { code: entry.code, status, nickname, kind, earnedAt, usedAt };
+}
+
+function newestFirst(a: MockCode, b: MockCode): number {
+  return b.earnedAt.localeCompare(a.earnedAt) || a.code.localeCompare(b.code);
+}
+
+function toEntry(entry: MockCode): CodeListEntry {
+  return { ...entry };
+}
+
+function statsOf(codes: MockCode[], players: number): DashboardStats {
+  return {
+    players,
+    codes: codes.length,
+    shareCodes: codes.filter((c) => c.kind === "share").length,
+    redeemed: codes.filter((c) => c.usedAt !== null).length,
+  };
 }
 
 /**
  * In-memory staff API for local dev (no Kody handler) and tests.
  * It copies the seed list, so each instance has its own state.
+ * `players` defaults to one player per code.
  */
 export function createMockStaffApi(options: {
   codes: readonly MockCode[];
   now: () => Date;
+  players?: number;
 }): StaffApi {
   const store = new Map(options.codes.map((c) => [c.code, { ...c }]));
+  const players = options.players ?? options.codes.length;
 
   function check(raw: string): CodeCheck {
     const code = normalizeCode(raw);
@@ -97,5 +130,9 @@ export function createMockStaffApi(options: {
       entry.usedAt = options.now().toISOString();
       return Promise.resolve({ ok: true, check: check(raw) });
     },
+    listCodes: () =>
+      Promise.resolve([...store.values()].sort(newestFirst).map(toEntry)),
+    dashboardStats: () =>
+      Promise.resolve(statsOf([...store.values()], players)),
   };
 }

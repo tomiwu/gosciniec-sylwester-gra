@@ -3,7 +3,8 @@ import { STAFF } from "../config";
 /**
  * Staff API client for the panel. The browser calls only the same-origin
  * staff routes. The Kody fetch handler (issue #17) checks the staff session
- * and calls the Supabase RPCs `check_code` and `redeem_code` on the server.
+ * and calls the Supabase RPCs `check_code`, `redeem_code`, `list_codes` and
+ * `dashboard_stats` on the server.
  * The browser never holds the service role and never calls a staff RPC.
  */
 export type CodeStatus = "valid" | "already_used" | "unknown" | "expired";
@@ -26,10 +27,41 @@ export type RedeemResult = {
   check: CodeCheck;
 };
 
-export type StaffApi = {
+/** One issued code in the staff list (`list_codes` row). No device id. */
+export type CodeListEntry = {
+  code: string;
+  nickname: string;
+  score: number;
+  kind: DiscountKind;
+  /** Players who came with this code's referral link. */
+  referrals: number;
+  earnedAt: string;
+  usedAt: string | null;
+};
+
+/** `dashboard_stats`: all players, all codes, share-bonus codes, used codes. */
+export type DashboardStats = {
+  players: number;
+  codes: number;
+  shareCodes: number;
+  redeemed: number;
+};
+
+/** An issued code is never unknown. */
+export type ListStatus = Exclude<CodeStatus, "unknown">;
+
+export type CodeCheckApi = {
   checkCode(code: string): Promise<CodeCheck>;
   redeemCode(code: string): Promise<RedeemResult>;
 };
+
+export type CodeListApi = {
+  /** Every issued code, newest first. */
+  listCodes(): Promise<CodeListEntry[]>;
+  dashboardStats(): Promise<DashboardStats>;
+};
+
+export type StaffApi = CodeCheckApi & CodeListApi;
 
 export class StaffApiError extends Error {
   constructor(message: string) {
@@ -44,6 +76,14 @@ const STATUSES: readonly CodeStatus[] = [
   "unknown",
   "expired",
 ];
+
+/** Same rule as `check_code`: a used code stays used after the end date. */
+export function statusAt(usedAt: string | null, now: Date): ListStatus {
+  if (usedAt !== null) return "already_used";
+  return now.getTime() >= Date.parse(STAFF.codeExpiresAtIso)
+    ? "expired"
+    : "valid";
+}
 
 /** Trim and upper case, so "  syl-ab2c " is "SYL-AB2C". */
 export function normalizeCode(code: string): string {
@@ -63,6 +103,22 @@ function textOrNull(value: unknown): string | null {
 
 function kindOf(value: unknown): DiscountKind | null {
   return value === "base" || value === "share" ? value : null;
+}
+
+function requiredText(value: unknown, field: string): string {
+  if (typeof value === "string") return value;
+  throw new StaffApiError(`The staff API returned no ${field}.`);
+}
+
+function requiredKind(value: unknown): DiscountKind {
+  const kind = kindOf(value);
+  if (kind === null) throw new StaffApiError("The staff API returned no kind.");
+  return kind;
+}
+
+function count(value: unknown, field: string): number {
+  if (Number.isInteger(value) && (value as number) >= 0) return value as number;
+  throw new StaffApiError(`The staff API returned a bad ${field}.`);
 }
 
 function statusOf(value: unknown): CodeStatus {
@@ -87,6 +143,38 @@ export function parseCheck(value: unknown): CodeCheck {
   };
 }
 
+/** Map a `list_codes` row (snake_case JSON). Other fields are dropped. */
+export function parseListEntry(value: unknown): CodeListEntry {
+  const row = asRow(value);
+  return {
+    code: requiredText(row.code, "code"),
+    nickname: requiredText(row.nickname, "nickname"),
+    score: count(row.score, "score"),
+    kind: requiredKind(row.kind),
+    referrals: count(row.referrals, "referral count"),
+    earnedAt: requiredText(row.earned_at, "date earned"),
+    usedAt: textOrNull(row.used_at),
+  };
+}
+
+function parseList(value: unknown): CodeListEntry[] {
+  if (!Array.isArray(value)) {
+    throw new StaffApiError("The staff API returned no code list.");
+  }
+  return value.map(parseListEntry);
+}
+
+/** Map the `dashboard_stats` body (snake_case JSON). */
+export function parseStats(value: unknown): DashboardStats {
+  const row = asRow(value);
+  return {
+    players: count(row.players, "player count"),
+    codes: count(row.codes, "code count"),
+    shareCodes: count(row.share_codes, "share code count"),
+    redeemed: count(row.redeemed, "used code count"),
+  };
+}
+
 function parseRedeem(value: unknown): RedeemResult {
   const row = asRow(value);
   return { ok: row.ok === true, check: parseCheck(row.check) };
@@ -100,22 +188,34 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-async function post(
+function requestInit(body: unknown): RequestInit {
+  if (body === undefined) {
+    return {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    };
+  }
+  return {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  };
+}
+
+/** GET when there is no body, else POST the body as JSON. */
+async function send(
   fetchFn: typeof fetch,
   path: string,
-  code: string,
+  body?: unknown,
 ): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetchFn(path, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ code: normalizeCode(code) }),
-    });
+    response = await fetchFn(path, requestInit(body));
   } catch {
     throw new StaffApiError("The staff API is not available.");
   }
@@ -123,6 +223,26 @@ async function post(
     throw new StaffApiError(`The staff API failed (${response.status}).`);
   }
   return readJson(response);
+}
+
+function post(fetchFn: typeof fetch, path: string, code: string) {
+  return send(fetchFn, path, { code: normalizeCode(code) });
+}
+
+function listUrl(offset: number): string {
+  return `${STAFF.api.listPath}?limit=${STAFF.api.listPageSize}&offset=${offset}`;
+}
+
+/** Read pages until a short page, or until the page limit. */
+async function listAll(fetchFn: typeof fetch): Promise<CodeListEntry[]> {
+  const all: CodeListEntry[] = [];
+  const size = STAFF.api.listPageSize;
+  for (let page = 0; page < STAFF.api.listMaxPages; page += 1) {
+    const rows = parseList(await send(fetchFn, listUrl(page * size)));
+    all.push(...rows);
+    if (rows.length < size) break;
+  }
+  return all;
 }
 
 /** Client for the same-origin staff routes. Tests give a fake `fetch`. */
@@ -133,6 +253,10 @@ export function createHttpStaffApi(fetchFn: typeof fetch): StaffApi {
     },
     async redeemCode(code) {
       return parseRedeem(await post(fetchFn, STAFF.api.redeemPath, code));
+    },
+    listCodes: () => listAll(fetchFn),
+    async dashboardStats() {
+      return parseStats(await send(fetchFn, STAFF.api.statsPath));
     },
   };
 }

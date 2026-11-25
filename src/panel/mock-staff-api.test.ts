@@ -67,3 +67,55 @@ describe("createMockStaffApi", () => {
     expect((await api().checkCode("SYL-AB2C")).status).toBe("valid");
   });
 });
+
+describe("createMockStaffApi list and stats", () => {
+  it("lists every code, newest first, with the status at now", async () => {
+    const list = await api().listCodes();
+    expect(list.map((c) => c.code)).toEqual(
+      [...MOCK_CODES]
+        .sort((a, b) => b.earnedAt.localeCompare(a.earnedAt))
+        .map((c) => c.code),
+    );
+    const used = list.find((c) => c.code === "SYL-USED");
+    expect(used?.usedAt).not.toBeNull();
+  });
+
+  it("shows a code as used in the list after a redeem", async () => {
+    const staff = api();
+    await staff.redeemCode("SYL-AB2C");
+    const entry = (await staff.listCodes()).find((c) => c.code === "SYL-AB2C");
+    expect(entry?.usedAt).toBe(BEFORE_END.toISOString());
+  });
+
+  it("returns an empty list and zero counts with no codes", async () => {
+    const empty = createMockStaffApi({ codes: [], now: () => BEFORE_END });
+    expect(await empty.listCodes()).toEqual([]);
+    expect(await empty.dashboardStats()).toEqual({
+      players: 0,
+      codes: 0,
+      shareCodes: 0,
+      redeemed: 0,
+    });
+  });
+
+  it("counts players, codes, share codes and used codes", async () => {
+    const staff = createMockStaffApi({
+      codes: MOCK_CODES,
+      players: 9,
+      now: () => BEFORE_END,
+    });
+    const before = await staff.dashboardStats();
+    expect(before).toEqual({
+      players: 9,
+      codes: MOCK_CODES.length,
+      shareCodes: MOCK_CODES.filter((c) => c.kind === "share").length,
+      redeemed: MOCK_CODES.filter((c) => c.usedAt !== null).length,
+    });
+    await staff.redeemCode("SYL-AB2C");
+    expect((await staff.dashboardStats()).redeemed).toBe(before.redeemed + 1);
+  });
+
+  it("counts one player per code when the player count is not set", async () => {
+    expect((await api().dashboardStats()).players).toBe(MOCK_CODES.length);
+  });
+});
