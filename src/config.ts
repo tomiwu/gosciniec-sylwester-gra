@@ -35,6 +35,33 @@ export const PLAY = {
   spawnEveryMs: 700,
   playerSpeedPxPerSec: 420,
   catchRadiusPx: 56,
+  fallSpeedPxPerSec: 280,
+  /** One frame never moves the game by more than this. A hidden tab must not skip the round. */
+  maxStepMs: 100,
+} as const;
+
+/** The play field in logical pixels. The canvas scales it to the screen (portrait, phone first). */
+export const FIELD = {
+  width: 390,
+  height: 844,
+  /** Vertical centre of the dancing couple. */
+  playerY: 740,
+  /** The couple and new items stay this far from the side edges. */
+  edgePx: 32,
+  itemRadiusPx: 22,
+} as const;
+
+/** Juicy feedback timings, in milliseconds of real time. */
+export const FEEDBACK = {
+  popMs: 700,
+  popRisePx: 60,
+  /** Cream flash on a catch when the streak is at least flashFromStreak. */
+  flashMs: 280,
+  flashFromStreak: 3,
+  /** Gold pulse while the clock runs slower than real time. */
+  pulseMs: 900,
+  /** Red flash on an obstacle hit. */
+  hitMs: 320,
 } as const;
 
 export const REWARD = {

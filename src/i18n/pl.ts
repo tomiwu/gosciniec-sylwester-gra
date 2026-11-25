@@ -4,6 +4,7 @@ export const pl = {
   title: "Sylwester 2026/2027",
   subtitle: "Oferta dla par",
   play: "Graj",
+  playAgain: "Zagraj jeszcze raz",
   mute: "Dźwięk",
   muted: "Wyciszono",
   score: "Wynik",
