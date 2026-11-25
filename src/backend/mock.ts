@@ -25,7 +25,13 @@ import type {
   SubmitResult,
 } from "./types";
 
-type ScoreRecord = { nickname: string; score: number; hidden: boolean };
+type ScoreRecord = {
+  nickname: string;
+  score: number;
+  hidden: boolean;
+  /** The first device that saved this nickname owns it. */
+  deviceId: string;
+};
 
 type CodeRecord = {
   code: string;
@@ -78,15 +84,19 @@ function inputError(input: SubmitInput): string | null {
   return isDeviceIdValid(input.deviceId) ? null : "device";
 }
 
-function recordScore(state: State, input: SubmitInput): void {
+/** False when another device owns the nickname. Then nothing changes. */
+function recordScore(state: State, input: SubmitInput): boolean {
   const key = nicknameKey(input.nickname);
   const previous = state.scores.get(key);
   if (!previous) {
     const nickname = input.nickname.trim();
-    state.scores.set(key, { nickname, score: input.score, hidden: false });
-    return;
+    const { score, deviceId } = input;
+    state.scores.set(key, { nickname, score, hidden: false, deviceId });
+    return true;
   }
+  if (previous.deviceId !== input.deviceId) return false;
   previous.score = Math.max(previous.score, input.score);
+  return true;
 }
 
 function isSelfReferral(referrer: CodeRecord, input: SubmitInput): boolean {
@@ -159,7 +169,7 @@ function issue(state: State, input: SubmitInput): SubmitResult {
 function submit(state: State, input: SubmitInput): SubmitResult {
   const error = inputError(input);
   if (error) return reject(error);
-  recordScore(state, input);
+  if (!recordScore(state, input)) return reject("nickname_taken");
   countReferral(state, input);
   return issue(state, input);
 }

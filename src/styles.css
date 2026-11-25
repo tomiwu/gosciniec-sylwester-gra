@@ -512,3 +512,8 @@ body {
   border: 1px solid var(--color-gold);
   font-weight: 700;
 }
+
+.nick-taken {
+  color: #f0c9a0;
+  font-weight: 700;
+}

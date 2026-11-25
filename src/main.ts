@@ -213,11 +213,34 @@ async function redeem(
     form?.classList.add("is-hidden");
     showCode(result, nickname);
     void showReferral(result.code);
+  } else if (result.reason === "nickname_taken") {
+    askOtherNick(state);
   } else if (form) {
-    const codeBox = document.querySelector("#code-box");
-    if (codeBox) codeBox.innerHTML = `<p class="lock">${pl.discountLocked}</p>`;
+    setCodeBox(`<p class="lock">${pl.discountLocked}</p>`);
   }
   void showBoard();
+}
+
+function setCodeBox(html: string): void {
+  const codeBox = document.querySelector("#code-box");
+  if (codeBox) codeBox.innerHTML = html;
+}
+
+/** Another device owns this nickname. Show the claim form again and ask for a new one. */
+function askOtherNick(state: GameState): void {
+  if (!document.querySelector("#claim")) {
+    document
+      .querySelector("#code-box")
+      ?.insertAdjacentHTML("beforebegin", claimForm());
+    bindClaim(state);
+  }
+  document.querySelector("#claim")?.classList.remove("is-hidden");
+  setCodeBox(`<p class="lock nick-taken" role="alert">${pl.nickTaken}</p>`);
+  const input = document.querySelector("#nick");
+  if (input instanceof HTMLInputElement) {
+    input.focus();
+    input.select();
+  }
 }
 
 function referralDots(done: number, needed: number): string {

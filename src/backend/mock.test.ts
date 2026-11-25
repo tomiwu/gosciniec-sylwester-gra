@@ -242,6 +242,33 @@ describe("createMockBackend referrals", () => {
   });
 });
 
+describe("createMockBackend nickname owner", () => {
+  it("gives the code only to the first device of a nickname", async () => {
+    const backend = createMockBackend({ now: () => DECEMBER });
+    const first = await backend.submit(play());
+    const other = await backend.submit(
+      play({
+        nickname: ` ${play().nickname.toUpperCase()} `,
+        deviceId: "thief",
+      }),
+    );
+    expect(other).toMatchObject({
+      accepted: false,
+      reason: "nickname_taken",
+      code: "",
+    });
+    const again = await backend.submit(play({ score: 10 }));
+    expect(again.code).toBe(first.code);
+  });
+
+  it("does not change the score from another device", async () => {
+    const backend = createMockBackend({ now: () => DECEMBER });
+    await backend.submit(play({ score: 220 }));
+    await backend.submit(play({ score: 900, deviceId: "thief" }));
+    expect((await backend.top(5))[0]?.score).toBe(220);
+  });
+});
+
 describe("createMockBackend referral links", () => {
   async function owner() {
     let n = 0;

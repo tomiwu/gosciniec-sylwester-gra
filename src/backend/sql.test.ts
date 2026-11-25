@@ -129,6 +129,14 @@ describe("supabase migrations", () => {
     expect(all).toContain("count(distinct r.device_id)");
   });
 
+  it("give a code only to the device that owns the nickname", () => {
+    expect(all).toContain("where s.device_id = excluded.device_id;");
+    expect(all).toContain(
+      "return syl_private.submit_result(false, 'nickname_taken');",
+    );
+    expect(all).toContain("create or replace function public.issue_code(");
+  });
+
   it("do not contain a service role key", () => {
     expect(all).not.toMatch(/service_role/i);
     expect(all).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}/);

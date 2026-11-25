@@ -13,17 +13,34 @@ const BOARD = [
   { nickname: "Piotr", score: 150 },
 ];
 
-async function fakeSupabase(page: Page, progress: number): Promise<void> {
+const TAKEN = {
+  accepted: false,
+  reason: "nickname_taken",
+  code: "",
+  discount_percent: 0,
+  referral_progress: 0,
+  referral_needed: 5,
+};
+
+async function fakeSupabase(
+  page: Page,
+  progress: number,
+  nickTaken = false,
+): Promise<string[]> {
+  const called: string[] = [];
   await page.route("**/rest/v1/rpc/**", async (route) => {
     const name = new URL(route.request().url()).pathname.split("/").pop();
+    called.push(name ?? "");
     const answers: Record<string, unknown> = {
-      issue_code: {
-        accepted: true,
-        code: "SYL-7K2P",
-        discount_percent: progress >= 5 ? 20 : 10,
-        referral_progress: progress,
-        referral_needed: 5,
-      },
+      issue_code: nickTaken
+        ? TAKEN
+        : {
+            accepted: true,
+            code: "SYL-7K2P",
+            discount_percent: progress >= 5 ? 20 : 10,
+            referral_progress: progress,
+            referral_needed: 5,
+          },
       leaderboard: BOARD,
       referral_status: {
         token: "NZ6ETKB5FA",
@@ -35,6 +52,7 @@ async function fakeSupabase(page: Page, progress: number): Promise<void> {
     };
     await route.fulfill({ json: answers[name ?? ""] ?? null });
   });
+  return called;
 }
 
 test("end screen: call, referral share and top list", async ({
@@ -76,6 +94,26 @@ test("end screen: copy fallback when Web Share is missing", async ({
   expect(copied).toMatch(/\?ref=[2-9A-HJ-NP-Z]{10}$/);
   await page.screenshot({
     path: `docs/gallery/${info.project.name}-end-bonus.png`,
+    fullPage: true,
+  });
+});
+
+test("end screen: a nickname of another device asks for a new one", async ({
+  page,
+}, info) => {
+  const called = await fakeSupabase(page, 0, true);
+  await page.goto("/?shot=end&nick=Kasia_Bal");
+  await page.locator("#board li").first().waitFor();
+  test.skip(
+    !called.includes("issue_code"),
+    "The build uses the local mock, so the fake answer is not used.",
+  );
+  await expect(page.locator(".nick-taken")).toContainText("zajęty");
+  await expect(page.locator("#claim")).toBeVisible();
+  await expect(page.locator("#nick")).toBeFocused();
+  await expect(page.locator("#refer")).toBeHidden();
+  await page.screenshot({
+    path: `docs/gallery/${info.project.name}-end-nick-taken.png`,
     fullPage: true,
   });
 });

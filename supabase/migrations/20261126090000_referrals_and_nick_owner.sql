@@ -1,4 +1,5 @@
--- NYE game: referral links for the share bonus (299 zl per person after 5 referred players).
+-- NYE game: (1) referral links for the share bonus (299 zl per person after 5 referred players),
+-- and (2) nickname ownership: only the first device of a nickname gets its code (issue #25).
 -- Paste this whole file into the Supabase SQL editor and click Run. You can run it again safely.
 -- Do not put keys in this file. The app uses only the anon key.
 --
@@ -134,7 +135,76 @@ begin
 end;
 $$;
 
+-- Nickname ownership (issue #25). A nickname belongs to the device that saved it first
+-- (public.scores.device_id, set once at insert). Only that device can raise the score or read the code.
+-- Another device gets reason 'nickname_taken'. Existing rows keep their first device, so no code changes.
+-- The upsert updates only the owner row, so two devices that race for one new nickname cannot both win.
+create or replace function public.issue_code(
+  p_nickname text,
+  p_score integer,
+  p_device_id text,
+  p_referral_code text default null
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_nickname text := syl_private.clean_nickname(p_nickname);
+  v_key text := lower(syl_private.clean_nickname(p_nickname));
+  v_error text := syl_private.input_error(v_nickname, p_score, p_device_id);
+  v_owner text;
+  v_code text;
+  v_new text;
+begin
+  if v_error is not null then
+    return syl_private.submit_result(false, v_error);
+  end if;
+
+  insert into public.scores as s (nickname_key, nickname, score, device_id)
+  values (v_key, v_nickname, p_score, p_device_id)
+  on conflict (nickname_key) do update
+    set score = greatest(s.score, excluded.score), updated_at = now()
+    where s.device_id = excluded.device_id;
+
+  select s.device_id into v_owner from public.scores s where s.nickname_key = v_key;
+  if v_owner is distinct from p_device_id then
+    return syl_private.submit_result(false, 'nickname_taken');
+  end if;
+
+  perform syl_private.count_referral(p_referral_code, v_key, p_device_id);
+
+  select c.code into v_code from public.codes c where c.nickname_key = v_key;
+  if v_code is not null then
+    return syl_private.code_result(v_code);
+  end if;
+  if p_score < syl_private.discount_score() then
+    return syl_private.submit_result(true, null);
+  end if;
+  if now() >= syl_private.code_expires_at() then
+    return syl_private.submit_result(false, 'expired');
+  end if;
+
+  v_new := syl_private.new_code(v_nickname);
+  if v_new is null then
+    return syl_private.submit_result(false, 'code');
+  end if;
+  insert into public.codes (code, nickname_key, nickname, device_id, score)
+  values (v_new, v_key, v_nickname, p_device_id, p_score)
+  on conflict do nothing;
+  select c.code into v_code from public.codes c where c.nickname_key = v_key;
+  if v_code is null then
+    return syl_private.submit_result(false, 'code');
+  end if;
+  return syl_private.code_result(v_code);
+end;
+$$;
+
 -- ---------------------------------------------------------------- function grants
+
+-- create or replace keeps the grants of issue_code (anon and authenticated may execute).
 
 revoke all on function public.referral_status(text) from public, anon, authenticated;
 revoke all on function public.record_referral_finish(text, text) from public, anon, authenticated;

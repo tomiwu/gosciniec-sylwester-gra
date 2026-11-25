@@ -30,6 +30,7 @@ export const pl = {
     "Zagraj ze mną w sylwestrową grę Gościńca Uniejów i zdobądź zniżkę na bal!",
   boardEmpty: "Bądź pierwszy na liście!",
   playingAs: "Grasz jako",
+  nickTaken: "Ten nick jest już zajęty. Wybierz inny.",
   priceRegular: "Cena regularna",
   priceWithCode: "Z kodem",
   priceWithShare: "Za 5 poleceń",
