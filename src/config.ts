@@ -5,8 +5,10 @@
 
 export const COLORS = {
   bg: "#140f0c",
-  gold: "#d4af37",
-  cream: "#f6f0e4",
+  /** Official Gościniec Uniejów gold from the campaign logo. */
+  gold: "#c9a24d",
+  /** Cream from the official NYE posters. */
+  cream: "#f3eee6",
   red: "#e10600",
   dark: "#0b0a09",
 } as const;
@@ -36,6 +38,11 @@ export const PLAY = {
   playerSpeedPxPerSec: 420,
   catchRadiusPx: 56,
   fallSpeedPxPerSec: 280,
+  /**
+   * How much fall speed and spawn rate grow as remaining time falls.
+   * At midnight the tempo is 1 + tempoBoost (items fall and spawn faster).
+   */
+  tempoBoost: 1.25,
   /** One frame never moves the game by more than this. A hidden tab must not skip the round. */
   maxStepMs: 100,
 } as const;
@@ -44,7 +51,7 @@ export const PLAY = {
 export const FIELD = {
   width: 390,
   height: 844,
-  /** Vertical centre of the dancing couple. */
+  /** Vertical centre of the dancing couple (catch zone). */
   playerY: 740,
   /** The couple and new items stay this far from the side edges. */
   edgePx: 32,
@@ -62,6 +69,10 @@ export const FEEDBACK = {
   pulseMs: 900,
   /** Red flash on an obstacle hit. */
   hitMs: 320,
+  /** How long the catch pose stays after a catch. */
+  catchPoseMs: 420,
+  /** How long a left/right dance pose stays after a move. */
+  poseHoldMs: 280,
 } as const;
 
 export const REWARD = {
@@ -79,9 +90,14 @@ export const REWARD = {
 export const OFFER = {
   title: "Sylwester 2026/2027",
   subtitle: "Oferta dla par",
-  priceWas: 740,
-  priceNow: 599,
+  /** Regular ticket price in złoty, per person. Confirmed by Tomasz. */
+  price: 370,
+  /** 10 % game-code price. Exact value from Tomasz (370 - 10 %). */
+  priceWithCode: 333,
+  /** Share-bonus price after 5 referrals. Exact value from Tomasz (not 20 % of 370). */
+  priceWithShare: 299,
   currency: "zł",
+  perPerson: "os.",
   eventStart: "31.12.2026, godz. 20:00",
   dj: "DJ Letsky",
   address: "ul. Sienkiewicza 137, 99-210 Uniejów",
@@ -107,6 +123,21 @@ export function slowFactor(streak: number, clock = CLOCK): number {
 }
 
 /**
+ * How much faster items fall and spawn as midnight comes closer.
+ * At the start of the round the value is 1. At midnight it is 1 + tempoBoost.
+ */
+export function tempoMultiplier(
+  remainingMs: number,
+  clock = CLOCK,
+  play = PLAY,
+): number {
+  const base = clock.baseDurationMs;
+  const remaining = Math.min(Math.max(0, remainingMs), base);
+  const urgency = 1 - remaining / base;
+  return 1 + urgency * play.tempoBoost;
+}
+
+/**
  * Reduce remaining game time.
  * A factor above 1 makes the remaining time fall more slowly.
  */
@@ -122,6 +153,26 @@ export function tickRemaining(
   return Math.max(0, remainingMs - dtMs / safeFactor);
 }
 
+/**
+ * Ticket price after a discount.
+ * Uses the exact amounts Tomasz confirmed: 333 zl (10 %) and 299 zl (share bonus).
+ */
+export function discountedPrice(
+  percent: number,
+  offer = OFFER,
+  reward = REWARD,
+): number {
+  const p = Number.isFinite(percent) ? Math.max(0, percent) : 0;
+  if (p >= reward.referralPercent) return offer.priceWithShare;
+  if (p >= reward.basePercent) return offer.priceWithCode;
+  return offer.price;
+}
+
+/** Polish price line, for example "370 zł / os.". */
+export function formatOfferPrice(amount: number, offer = OFFER): string {
+  return `${amount} ${offer.currency} / ${offer.perPerson}`;
+}
+
 /** Highest score a honest client can reach in one round, plus slack. */
 export function maxPossibleScore(
   clock = CLOCK,
@@ -129,7 +180,8 @@ export function maxPossibleScore(
   play = PLAY,
   reward = REWARD,
 ): number {
-  const maxSpawns = Math.floor(clock.maxWallClockMs / play.spawnEveryMs) + 1;
+  const fastestEvery = play.spawnEveryMs / (1 + play.tempoBoost);
+  const maxSpawns = Math.floor(clock.maxWallClockMs / fastestEvery) + 1;
   const bestPoints = Math.max(
     items.glass.points,
     items.star.points,

@@ -6,7 +6,7 @@ Language of this document: English, ASD-STE100. Player-facing game text is Polis
 
 ## Problem
 
-Hotel Gosciniec Uniejow needs a short, fun game that can drive New Year Eve 2026/2027 bookings. The hotel has a poster and a Facebook audience, but it has no interactive promo. The Black Friday poster offer is 599 zl per couple (was 740 zl), on 31 December 2026 at 20:00, with DJ Letsky.
+Hotel Gosciniec Uniejow needs a short, fun game that can drive New Year Eve 2026/2027 bookings. The hotel has a poster and a Facebook audience, but it has no interactive promo. The regular NYE offer is 370 zl per person, on 31 December 2026 at 20:00, with DJ Letsky.
 
 ## Goal
 
@@ -32,11 +32,11 @@ A player can open a web page on a phone, play one round of about 60 seconds, see
 5. Discount: 10 % per ticket when the score reaches 200 (tunable). Code form: `SYL-XXXX`, unique per nickname.
 6. Referral (after the core game): a personal `?ref=CODE` link. When 5 distinct new players (device id + nickname) open the link and finish a round, the referrer code upgrades to 20 %. The end screen shows progress x/5.
 7. Leaderboard: nickname only (max 16 characters), no email, top 20, score sanity check.
-8. Look: dark ballroom, gold frame, cream text, red price badge, dancing couple silhouettes, from the hotel poster.
+8. Look: night New York skyline behind a large art-deco gold clock, official gold logo, Didot typography and campaign couple silhouettes from the NYE posters, cream and gold on dark.
 9. Sound is optional, with a mute control. Share uses the Web Share API, with a clipboard fallback.
 10. The Sandcastle loop opens a PR and waits for CI. It does not merge. Tomasz must say yes before a merge or a publish. `AUTO_MERGE=0`.
 11. The loop uses Claude Sonnet (`claude-sonnet-5-5`) to keep the token cost down.
-12. Offer text defaults to the current poster (599 zl / para). Tomasz can change it in `src/config.ts` after 29 November 2026.
+12. Offer text defaults to the regular poster price: 370 zl per person. A 10 % game code lowers it to 333 zl / os. A share bonus after 5 referrals lowers it to 299 zl / os.
 13. The booking URL defaults to the public hotel email until Tomasz gives the booking page.
 
 ## Requirements

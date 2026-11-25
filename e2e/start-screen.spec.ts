@@ -63,9 +63,7 @@ test("start screen fits the viewport and keeps a gold-on-dark palette", async ({
   await page.goto("/");
   const panel = page.locator("[data-screen=start]");
   await expect(panel).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Sylwester 2026/2027",
-  );
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sylwester");
   await expect(page.getByRole("link", { name: "Zarezerwuj" })).toBeVisible();
 
   const overflow = await page.evaluate(() => ({
@@ -103,8 +101,12 @@ test("start screen fits the viewport and keeps a gold-on-dark palette", async ({
   expect(titleColor).not.toBeNull();
   expect(contrastRatio(titleColor!, titleBg)).toBeGreaterThanOrEqual(4.5);
 
+  await expect(
+    page.getByRole("img", { name: "Gościniec Uniejów" }),
+  ).toBeVisible();
+
   const gold = parseRgb(
-    await page.locator(".logo").evaluate((el) => getComputedStyle(el).color),
+    await page.locator(".year").evaluate((el) => getComputedStyle(el).color),
   );
   expect(gold).not.toBeNull();
   expect(Math.abs(gold!.r - GOLD.r)).toBeLessThan(30);
@@ -113,6 +115,12 @@ test("start screen fits the viewport and keeps a gold-on-dark palette", async ({
   expect(titleBg.r).toBeLessThan(DARK_MAX + 20);
   expect(titleBg.g).toBeLessThan(DARK_MAX + 10);
   expect(titleBg.b).toBeLessThan(DARK_MAX);
+
+  await expect(page.getByText("370 zł / os.", { exact: true })).toBeVisible();
+  const bodyText = await page.locator("body").innerText();
+  expect(bodyText.toLowerCase()).not.toContain("black friday");
+  expect(bodyText).not.toContain("599");
+  expect(bodyText).not.toContain("740");
 
   await page.screenshot({
     path: `docs/gallery/${info.project.name}-start.png`,

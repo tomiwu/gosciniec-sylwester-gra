@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CLOCK } from "../config";
-import { runRound } from "./session";
+import { poseFromMove, runRound } from "./session";
 import type { Ctx } from "./render";
 import type { GameState, InputState } from "./types";
 
@@ -79,5 +79,15 @@ describe("runRound", () => {
     frames.tick(CLOCK.maxWallClockMs * 2);
     stop();
     expect(frames.cancelled).toEqual([]);
+  });
+});
+
+describe("poseFromMove", () => {
+  it("follows a move and then returns to idle after the hold", () => {
+    expect(poseFromMove(4, 0, 0, 0, 16)).toEqual({ dir: 1, holdMs: 280 });
+    expect(poseFromMove(-4, 0, 0, 0, 16)).toEqual({ dir: -1, holdMs: 280 });
+    expect(poseFromMove(0, 1, 0, 0, 16)).toEqual({ dir: 1, holdMs: 280 });
+    expect(poseFromMove(0, 0, 100, -1, 40)).toEqual({ dir: -1, holdMs: 60 });
+    expect(poseFromMove(0, 0, 20, 1, 40)).toEqual({ dir: 0, holdMs: 0 });
   });
 });

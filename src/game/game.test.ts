@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { CLOCK, FIELD, ITEMS, PLAY, slowFactor } from "../config";
+import {
+  CLOCK,
+  FIELD,
+  ITEMS,
+  PLAY,
+  slowFactor,
+  tempoMultiplier,
+} from "../config";
 import { createGame, stepGame } from "./game";
 import type { GameState, InputState, Item } from "./types";
 
@@ -229,5 +236,42 @@ describe("end of the round", () => {
     const ended = stepGame(quiet({ remainingMs: 1 }), 16, idle, zero);
     const again = stepGame(ended, 16, { dir: 1, targetX: null }, zero);
     expect(again).toEqual({ ...ended, events: [] });
+  });
+});
+
+describe("tempo as time runs down", () => {
+  it("makes items fall faster when less time remains", () => {
+    const late = quiet({
+      remainingMs: 0,
+      items: [{ id: 1, kind: "star", x: 10, y: 100 }],
+    });
+    const next = stepGame(late, 100, idle, zero);
+    expect(next.items[0]?.y).toBeCloseTo(
+      100 + PLAY.fallSpeedPxPerSec * tempoMultiplier(0) * 0.1,
+      6,
+    );
+  });
+
+  it("keeps the start-of-round fall speed at the base rate", () => {
+    const state = quiet({
+      items: [{ id: 1, kind: "star", x: 10, y: 100 }],
+    });
+    const next = stepGame(state, 100, idle, zero);
+    expect(next.items[0]?.y).toBeCloseTo(100 + PLAY.fallSpeedPxPerSec * 0.1, 6);
+  });
+
+  it("spawns sooner when less time remains", () => {
+    const remaining = 1_000;
+    const late = quiet({ remainingMs: remaining, spawnTimerMs: 0 });
+    const every = PLAY.spawnEveryMs / tempoMultiplier(remaining);
+    expect(every).toBeLessThan(PLAY.spawnEveryMs);
+    let state = late;
+    let elapsed = 0;
+    while (elapsed < every + 40 && state.items.length === 0) {
+      state = stepGame(state, 50, idle, zero);
+      elapsed += 50;
+    }
+    expect(state.items.length).toBeGreaterThanOrEqual(1);
+    expect(elapsed).toBeLessThan(PLAY.spawnEveryMs);
   });
 });
