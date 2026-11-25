@@ -149,8 +149,9 @@ function stubImg(width = 80, height = 120) {
 }
 
 function stubArt() {
+  const view = stubImg(720, 1280);
   return {
-    skyline: stubImg(720, 1280),
+    views: [view, view, view, view, view],
     clockRing: stubImg(720, 720),
     coupleIdle: stubImg(80, 120),
     coupleLeft: stubImg(80, 120),
@@ -164,7 +165,7 @@ function stubArt() {
 }
 
 describe("drawFrame with art", () => {
-  it("draws the skyline, the clock ring and the couple", () => {
+  it("draws the backdrop, the clock ring and the couple", () => {
     const { ctx, calls } = fakeCtx();
     drawFrame(ctx, createGame(), createEffects(), labels, {
       nowMs: 1_000,
@@ -227,7 +228,7 @@ describe("drawFrame with art", () => {
       lean: -0.14,
       spinRad: 0.5,
     });
-    // skyline + clock ring + previous pose + current pose
+    // backdrop + clock ring + previous pose + current pose
     expect(calls.filter((name) => name === "drawImage").length).toBeGreaterThan(
       3,
     );
@@ -248,5 +249,25 @@ describe("drawFrame with art", () => {
       });
       expect(calls).toContain("drawImage");
     }
+  });
+
+  it("cross-fades Uniejow views near a clock-slot boundary", () => {
+    const { ctx, calls } = fakeCtx();
+    const start = fakeCtx();
+    const art = stubArt();
+    drawFrame(start.ctx, createGame(), createEffects(), labels, {
+      art,
+    });
+    // Mid-fade from hall to church: progress 0.18
+    drawFrame(
+      ctx,
+      { ...createGame(), remainingMs: CLOCK.baseDurationMs - 4_500 },
+      createEffects(),
+      labels,
+      { art },
+    );
+    expect(calls.filter((name) => name === "drawImage").length).toBe(
+      start.calls.filter((name) => name === "drawImage").length + 1,
+    );
   });
 });

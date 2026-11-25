@@ -33,6 +33,7 @@ export const pl = {
   eventWhen: "31.12.2026, godz. 20:00",
   dj: "DJ Letsky",
   address: "ul. Sienkiewicza 137, Uniejów",
+  photoCredits: "Zdjęcia: Gościniec Uniejów, Masandro, Annkes, Beemwej",
 } as const;
 
 export type PlKey = keyof typeof pl;

@@ -64,7 +64,7 @@ export const FIELD = {
 export const DEPTH = {
   /** Same x as the clock centre. */
   vanishX: 195,
-  /** Same y as the clock centre, so the hall leads into the skyline. */
+  /** Same y as the clock centre, so the hall leads into the clock. */
   vanishY: 298,
   /** Where the visible floor begins, just under the clock ring. */
   horizonY: 470,

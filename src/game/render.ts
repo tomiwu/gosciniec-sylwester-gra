@@ -1,6 +1,7 @@
 import { COLORS, CLOCK, DEPTH, FEEDBACK, FIELD, slowFactor } from "../config";
 import { floorEdges, itemScale } from "./depth";
 import type { GameArt } from "./art";
+import { viewCrossfade } from "./views";
 import type { Effects, Pop, Spark } from "./effects";
 import type { GameState, Item, ItemKind } from "./types";
 
@@ -47,6 +48,7 @@ export type PoseId = "idle" | "left" | "right" | "catch";
 export interface Labels {
   readonly score: string;
   readonly time: string;
+  readonly photoCredits?: string;
 }
 
 export interface View {
@@ -580,20 +582,68 @@ function drawFloor(ctx: Ctx) {
   ctx.restore();
 }
 
+function viewImage(
+  views: readonly HTMLImageElement[],
+  index: number,
+): HTMLImageElement | undefined {
+  return views[index] ?? views[0];
+}
+
+function paintView(
+  ctx: Ctx,
+  views: readonly HTMLImageElement[],
+  index: number,
+  shift: number,
+  alpha: number,
+) {
+  const img = viewImage(views, index);
+  if (!img || alpha <= 0) return;
+  if (alpha >= 1) {
+    drawCover(ctx, img, shift);
+    return;
+  }
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  drawCover(ctx, img, shift);
+  ctx.restore();
+}
+
+function drawViews(ctx: Ctx, art: GameArt, remainingMs: number, shift: number) {
+  const fade = viewCrossfade(remainingMs);
+  paintView(ctx, art.views, fade.from, shift, 1);
+  if (fade.to !== fade.from) {
+    paintView(ctx, art.views, fade.to, shift, fade.mix);
+  }
+}
+
 function drawBackdrop(
   ctx: Ctx,
   art: GameArt | null,
   playerX: number,
   nowMs: number,
+  remainingMs: number,
 ) {
   ctx.fillStyle = COLORS.bg;
   ctx.fillRect(0, 0, FIELD.width, FIELD.height);
   if (art) {
     const shift = ((playerX - FIELD.width / 2) / FIELD.width) * -14;
-    drawCover(ctx, art.skyline, shift);
+    drawViews(ctx, art, remainingMs, shift);
   }
   drawTwinkles(ctx, nowMs);
   drawVignette(ctx);
+}
+
+function drawCredits(ctx: Ctx, text: string) {
+  ctx.save();
+  ctx.globalAlpha = 0.72;
+  ctx.fillStyle = COLORS.gold;
+  ctx.font = "9px Georgia, 'Times New Roman', serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+  ctx.shadowBlur = 4;
+  ctx.fillText(text, FIELD.width / 2, FIELD.height - 6);
+  ctx.restore();
 }
 
 export function drawFrame(
@@ -604,7 +654,7 @@ export function drawFrame(
   view: View = {},
 ): void {
   const shot = readView(view);
-  drawBackdrop(ctx, shot.art, state.playerX, shot.nowMs);
+  drawBackdrop(ctx, shot.art, state.playerX, shot.nowMs, state.remainingMs);
   drawClockFace(ctx, state.remainingMs, shot.art);
   drawFloor(ctx);
   const nearFirst = [...state.items].sort((a, b) => a.z - b.z);
@@ -621,4 +671,5 @@ export function drawFrame(
   flash(ctx, COLORS.red, fx.hitMs, FEEDBACK.hitMs);
   pulse(ctx, fx.pulseMs);
   drawHud(ctx, state, labels);
+  if (labels.photoCredits) drawCredits(ctx, labels.photoCredits);
 }

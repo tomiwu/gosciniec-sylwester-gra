@@ -32,7 +32,7 @@ A player can open a web page on a phone, play one round of about 60 seconds, see
 5. Discount: 10 % per ticket when the score reaches 200 (tunable). Code form: `SYL-XXXX`, unique per nickname.
 6. Referral (after the core game): a personal `?ref=CODE` link. When 5 distinct new players (device id + nickname) open the link and finish a round, the referrer code upgrades to 20 %. The end screen shows progress x/5.
 7. Leaderboard: nickname only (max 16 characters), no email, top 20, score sanity check.
-8. Look: night New York skyline behind a large art-deco gold clock, official gold logo, Didot typography and campaign couple silhouettes from the NYE posters, cream and gold on dark.
+8. Look: Uniejow views that change with the game clock (hotel LED hall, Kolegiata, castle, Termy, hotel aerial) behind a large art-deco gold clock, official gold logo, Didot typography and campaign couple silhouettes from the NYE posters, cream and gold on dark.
 9. Sound is optional, with a mute control. Share uses the Web Share API, with a clipboard fallback.
 10. The Sandcastle loop opens a PR and waits for CI. It does not merge. Tomasz must say yes before a merge or a publish. `AUTO_MERGE=0`.
 11. The loop uses Claude Sonnet (`claude-sonnet-5-5`) to keep the token cost down.

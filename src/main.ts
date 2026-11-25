@@ -6,6 +6,7 @@ import { placeItem } from "./game/depth";
 import { createGame } from "./game/game";
 import { clientToFieldX, createInput } from "./game/input";
 import { runRound } from "./game/session";
+import { remainingForSlot } from "./game/views";
 import type { GameState } from "./game/types";
 import { pl } from "./i18n/pl";
 import "./styles.css";
@@ -54,6 +55,7 @@ function showStart(): void {
       <a class="btn secondary" id="book" href="${bookHref}">${pl.book}</a>
     </div>
     <p class="note">${pl.localOnly}</p>
+    <p class="credits">${pl.photoCredits}</p>
   </section>
 `;
   document.querySelector("#play")?.addEventListener("click", () => {
@@ -61,11 +63,25 @@ function showStart(): void {
   });
 }
 
+function shotRemainingMs(): number {
+  const remainRaw = params.get("remain");
+  if (remainRaw !== null && remainRaw !== "") {
+    const remain = Number(remainRaw);
+    if (Number.isFinite(remain)) return remain;
+  }
+  const slotRaw = params.get("slot");
+  if (slotRaw !== null && slotRaw !== "") {
+    const slot = Number(slotRaw);
+    if (Number.isFinite(slot)) return remainingForSlot(slot);
+  }
+  return 18_000;
+}
+
 function midShotState(): GameState {
   const base = createGame();
   return {
     ...base,
-    remainingMs: 18_000,
+    remainingMs: shotRemainingMs(),
     score: 120,
     streak: 3,
     spawnTimerMs: 0,
@@ -183,6 +199,7 @@ function showResult(state: GameState): void {
       <button type="button" class="btn" id="play">${pl.playAgain}</button>
       <a class="btn secondary" id="book" href="${bookHref}">${pl.book}</a>
     </div>
+    <p class="credits">${pl.photoCredits}</p>
   </section>
 `;
   document.querySelector("#play")?.addEventListener("click", () => {
@@ -250,7 +267,7 @@ export async function startGame(): Promise<void> {
     requestFrame: (cb) => requestAnimationFrame(cb),
     cancelFrame: (handle) => cancelAnimationFrame(handle),
     rand: Math.random,
-    labels: { score: pl.score, time: pl.time },
+    labels: { score: pl.score, time: pl.time, photoCredits: pl.photoCredits },
     onEnd: (state) => {
       input.dispose();
       stopRound = null;
