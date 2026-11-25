@@ -295,6 +295,24 @@ describe("createCodeList", () => {
     expect(last().error).toBe(false);
   });
 
+  it("ignores a load that ends after a reset", async () => {
+    const mock = createMockStaffApi({ codes: MOCK, now: () => BEFORE_END });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const api: CodeListApi = {
+      listCodes: () => gate.then(() => mock.listCodes()),
+      dashboardStats: mock.dashboardStats,
+    };
+    const { list, last } = setup(api);
+    const loading = list.load();
+    list.reset();
+    release();
+    await loading;
+    expect(last()).toEqual(INITIAL_CODE_LIST);
+  });
+
   it("resets to the first state", async () => {
     const { list, last } = setup();
     await list.load();

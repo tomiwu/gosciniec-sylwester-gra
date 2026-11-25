@@ -153,29 +153,39 @@ export function createCodeList(options: {
 }) {
   const { api, render } = options;
   let state: CodeListState = INITIAL_CODE_LIST;
+  /** A load that ends after a newer load or a reset must not change the state. */
+  let generation = 0;
 
   function show(next: Partial<CodeListState>): void {
     state = { ...state, ...next };
     render(state);
   }
 
+  async function fetchState(): Promise<Partial<CodeListState>> {
+    try {
+      const [entries, stats] = await Promise.all([
+        api.listCodes(),
+        api.dashboardStats(),
+      ]);
+      return { busy: false, loaded: true, entries, stats, error: false };
+    } catch {
+      return { busy: false, error: true };
+    }
+  }
+
   return {
     async load(): Promise<void> {
+      generation += 1;
+      const mine = generation;
       show({ busy: true });
-      try {
-        const [entries, stats] = await Promise.all([
-          api.listCodes(),
-          api.dashboardStats(),
-        ]);
-        show({ busy: false, loaded: true, entries, stats, error: false });
-      } catch {
-        show({ busy: false, error: true });
-      }
+      const next = await fetchState();
+      if (mine === generation) show(next);
     },
     setFilter(filter: CodeFilter): void {
       show({ filter });
     },
     reset(): void {
+      generation += 1;
       show(INITIAL_CODE_LIST);
     },
   };
