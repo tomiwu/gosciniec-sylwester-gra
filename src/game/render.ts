@@ -117,7 +117,7 @@ export function formatFactor(factor: number): string {
  */
 export function clockAngles(
   remainingMs: number,
-  base = CLOCK.baseDurationMs,
+  base: number = CLOCK.baseDurationMs,
 ): { hour: number; minute: number } {
   const progress = 1 - Math.min(1, Math.max(0, remainingMs) / base);
   const hours = (11 + progress) % 12;

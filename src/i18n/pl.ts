@@ -29,6 +29,12 @@ export const pl = {
   copyLink: "Skopiuj link polecający",
   howTo:
     "Przeciągnij palcem, żeby prowadzić parę. Łap przedmioty. Omijaj przeszkody. Seria złowień spowalnia zegar.",
+  howToJump:
+    "Biegnij w lewo i w prawo. Dotknij Skok albo spację, żeby skoczyć. Rozpęd daje wyższy skok. Seria pominiętych pięter spowalnia zegar. Łap kieliszki i gwiazdy. Omijaj pieczęcie.",
+  jumpButton: "Skok",
+  combo: "Seria",
+  faster: "Szybciej",
+  tower: "Wieża",
   localOnly: "Wyniki zapisujemy lokalnie, dopóki hotel nie podłączy serwera.",
   eventWhen: "31.12.2026, godz. 20:00",
   dj: "DJ Letsky",

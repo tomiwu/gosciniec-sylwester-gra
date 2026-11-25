@@ -108,6 +108,105 @@ export const FEEDBACK = {
   sparkMs: 520,
 } as const;
 
+/** Tunables for the Icy Tower-style climb variant. The catch game does not use these. */
+export const JUMP = {
+  /** Game time from start to midnight, in milliseconds, at factor 1. */
+  baseDurationMs: 30_000,
+  /** Hard stop in real time for the climb variant. */
+  maxWallClockMs: 50_000,
+  gravityPxPerSec2: 2400,
+  /** Lower gravity while the jump control is held and the couple still rises. */
+  holdGravityPxPerSec2: 1320,
+  jumpSpeedMinPxPerSec: 740,
+  jumpSpeedMaxPxPerSec: 1280,
+  runAccelPxPerSec2: 1500,
+  runDecelPxPerSec2: 2000,
+  runMaxPxPerSec: 360,
+  airControl: 0.7,
+  coyoteMs: 70,
+  jumpBufferMs: 110,
+  playerWidthPx: 52,
+  playerHeightPx: 110,
+  groundY: 780,
+  floorThicknessPx: 18,
+  floorGapMin: 78,
+  floorGapMax: 108,
+  floorWidthMin: 150,
+  floorWidthMax: 310,
+  floorEdgePx: 16,
+  floorPoints: 8,
+  comboBonus: 20,
+  /** Cap the combo multiplier used in the score (the clock cap stays separate). */
+  comboMultCap: 8,
+  scrollMinPxPerSec: 28,
+  scrollMaxPxPerSec: 190,
+  /** Keep the feet near this screen y when the couple climbs above it. */
+  cameraFollowPx: 560,
+  fallMarginPx: 24,
+  generateAheadPx: 900,
+  dropBehindPx: 240,
+  pickupRadiusPx: 28,
+  hazardRadiusPx: 26,
+  hitBouncePxPerSec: 280,
+  invulnMs: 450,
+  /** Pointer distance from the screen centre that does not start a run. */
+  deadZonePx: 36,
+} as const;
+
+/**
+ * Scroll speed of the climb camera, in pixels per second.
+ * At the start of the round the value is scrollMin. At midnight it is scrollMax.
+ */
+export function jumpScrollSpeed(remainingMs: number, jump = JUMP): number {
+  const base = jump.baseDurationMs;
+  const remaining = Math.min(Math.max(0, remainingMs), base);
+  const urgency = 1 - remaining / base;
+  return (
+    jump.scrollMinPxPerSec +
+    urgency * (jump.scrollMaxPxPerSec - jump.scrollMinPxPerSec)
+  );
+}
+
+/** Clock settings for the climb variant. Reuses the catch-game factor rules. */
+export function jumpClock(
+  jump = JUMP,
+  clock = CLOCK,
+): {
+  baseDurationMs: number;
+  streakRatio: number;
+  minFactor: number;
+  maxFactor: number;
+  maxWallClockMs: number;
+} {
+  return {
+    ...clock,
+    baseDurationMs: jump.baseDurationMs,
+    maxWallClockMs: jump.maxWallClockMs,
+  };
+}
+
+/**
+ * Highest score a honest climb client can reach in one round, plus slack.
+ * Uses the fastest scroll, every floor, a capped combo, and a pickup on each floor.
+ */
+export function maxPossibleJumpScore(
+  jump = JUMP,
+  items = ITEMS,
+  reward = REWARD,
+): number {
+  const climbPx = jump.scrollMaxPxPerSec * (jump.maxWallClockMs / 1000);
+  const maxFloors = Math.floor(climbPx / jump.floorGapMin) + 20;
+  const floorPoints = maxFloors * jump.floorPoints;
+  const comboPoints = maxFloors * jump.comboBonus * jump.comboMultCap;
+  const bestPickup = Math.max(
+    items.glass.points,
+    items.star.points,
+    items.clock.points,
+  );
+  const itemPoints = maxFloors * bestPickup;
+  return floorPoints + comboPoints + itemPoints + reward.scoreSlack;
+}
+
 export const REWARD = {
   /** Score that unlocks the 10 % discount code. */
   discountScore: 200,
@@ -224,7 +323,8 @@ export function maxPossibleScore(
 }
 
 export function isScoreSane(score: number): boolean {
-  return Number.isInteger(score) && score >= 0 && score <= maxPossibleScore();
+  const cap = Math.max(maxPossibleScore(), maxPossibleJumpScore());
+  return Number.isInteger(score) && score >= 0 && score <= cap;
 }
 
 export function isNicknameValid(
