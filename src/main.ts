@@ -1,6 +1,5 @@
 import { FIELD, OFFER } from "./config";
 import { clientToFieldX, createInput } from "./game/input";
-import type { Ctx } from "./game/render";
 import { runRound } from "./game/session";
 import type { GameState } from "./game/types";
 import { pl } from "./i18n/pl";
@@ -72,7 +71,7 @@ export function startGame(): void {
     },
   });
   const stop = runRound({
-    ctx: ctx as Ctx,
+    ctx,
     input,
     requestFrame: (cb) => requestAnimationFrame(cb),
     cancelFrame: (handle) => cancelAnimationFrame(handle),

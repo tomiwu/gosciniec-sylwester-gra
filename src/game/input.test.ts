@@ -10,9 +10,10 @@ function setup() {
     pointer,
     toFieldX: (clientX) => clientX / 2,
   });
-  const key = (type: string, k: string) => {
+  const key = (type: string, k: string, mods: object = {}) => {
     const event = Object.assign(new Event(type, { cancelable: true }), {
       key: k,
+      ...mods,
     });
     keys.dispatchEvent(event);
     return event;
@@ -65,6 +66,24 @@ describe("keyboard", () => {
     const { key } = setup();
     expect(key("keydown", "ArrowLeft").defaultPrevented).toBe(true);
     expect(key("keydown", "x").defaultPrevented).toBe(false);
+  });
+
+  it("leaves browser shortcuts such as Ctrl+D alone", () => {
+    const { input, key } = setup();
+    const event = key("keydown", "d", { ctrlKey: true });
+    expect(event.defaultPrevented).toBe(false);
+    expect(input.read().dir).toBe(0);
+    key("keydown", "d");
+    key("keydown", "ArrowLeft", { metaKey: true });
+    key("keyup", "d", { ctrlKey: true });
+    expect(input.read().dir).toBe(0);
+  });
+
+  it("lets go of the keys when the window loses focus", () => {
+    const { input, key, keys } = setup();
+    key("keydown", "ArrowLeft");
+    keys.dispatchEvent(new Event("blur"));
+    expect(input.read().dir).toBe(0);
   });
 
   it("takes the control back from the pointer", () => {

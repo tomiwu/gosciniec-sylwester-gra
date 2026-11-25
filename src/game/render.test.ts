@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEEDBACK, FIELD } from "../config";
+import { FEEDBACK } from "../config";
 import { createEffects } from "./effects";
 import { createGame } from "./game";
 import {
@@ -118,6 +118,5 @@ describe("drawFrame", () => {
     expect(busy.calls.filter((c) => c === "fillRect").length).toBe(
       quiet.calls.filter((c) => c === "fillRect").length + 2,
     );
-    expect(FIELD.width).toBeGreaterThan(0);
   });
 });

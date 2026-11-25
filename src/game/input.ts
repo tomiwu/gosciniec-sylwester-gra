@@ -46,8 +46,9 @@ export function createInput(sources: InputSources): GameInput {
   };
 
   const onKey = (down: boolean) => (event: Event) => {
-    const side = sideOf((event as KeyboardEvent).key);
-    if (side === null) return;
+    const { key, ctrlKey, metaKey } = event as KeyboardEvent;
+    const side = sideOf(key);
+    if (side === null || (down && (ctrlKey || metaKey))) return;
     event.preventDefault();
     if (side === "left") left = down;
     else right = down;
@@ -61,6 +62,10 @@ export function createInput(sources: InputSources): GameInput {
 
   listen(sources.keys, "keydown", onKey(true));
   listen(sources.keys, "keyup", onKey(false));
+  listen(sources.keys, "blur", () => {
+    left = false;
+    right = false;
+  });
   listen(sources.pointer, "pointerdown", (event) => {
     pressed = true;
     targetX = point(event);
