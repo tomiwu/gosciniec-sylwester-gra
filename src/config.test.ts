@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLOCK,
   ITEMS,
+  JUMP,
   OFFER,
   PLAY,
   REWARD,
@@ -9,6 +10,9 @@ import {
   formatOfferPrice,
   isNicknameValid,
   isScoreSane,
+  jumpClock,
+  jumpScrollSpeed,
+  maxPossibleJumpScore,
   maxPossibleScore,
   slowFactor,
   tempoMultiplier,
@@ -111,11 +115,50 @@ describe("score sanity", () => {
     const fastestEvery = PLAY.spawnEveryMs / (1 + PLAY.tempoBoost);
     const spawns = Math.floor(CLOCK.maxWallClockMs / fastestEvery) + 1;
     expect(max).toBe(spawns * ITEMS.clock.points + REWARD.scoreSlack);
+    const cap = Math.max(max, maxPossibleJumpScore());
     expect(isScoreSane(0)).toBe(true);
-    expect(isScoreSane(max)).toBe(true);
-    expect(isScoreSane(max + 1)).toBe(false);
+    expect(isScoreSane(cap)).toBe(true);
+    expect(isScoreSane(cap + 1)).toBe(false);
     expect(isScoreSane(-1)).toBe(false);
     expect(isScoreSane(3.5)).toBe(false);
+  });
+});
+
+describe("jumpScrollSpeed", () => {
+  it("is the minimum at the start and the maximum at midnight", () => {
+    expect(jumpScrollSpeed(JUMP.baseDurationMs)).toBe(JUMP.scrollMinPxPerSec);
+    expect(jumpScrollSpeed(0)).toBe(JUMP.scrollMaxPxPerSec);
+  });
+
+  it("is halfway at half of the climb clock", () => {
+    const mid = (JUMP.scrollMinPxPerSec + JUMP.scrollMaxPxPerSec) / 2;
+    expect(jumpScrollSpeed(JUMP.baseDurationMs / 2)).toBeCloseTo(mid, 8);
+  });
+});
+
+describe("jumpClock", () => {
+  it("keeps the catch-game factor rules on a 30 s climb clock", () => {
+    const clock = jumpClock();
+    expect(clock.baseDurationMs).toBe(30_000);
+    expect(clock.maxWallClockMs).toBe(50_000);
+    expect(clock.streakRatio).toBe(CLOCK.streakRatio);
+    expect(clock.maxFactor).toBe(CLOCK.maxFactor);
+    expect(CLOCK.baseDurationMs).toBe(25_000);
+    expect(JUMP.baseDurationMs).toBe(30_000);
+  });
+});
+
+describe("maxPossibleJumpScore", () => {
+  it("covers floors, a capped combo, and a pickup on every floor", () => {
+    const climbPx = JUMP.scrollMaxPxPerSec * (JUMP.maxWallClockMs / 1000);
+    const floors = Math.floor(climbPx / JUMP.floorGapMin) + 20;
+    const expected =
+      floors * JUMP.floorPoints +
+      floors * JUMP.comboBonus * JUMP.comboMultCap +
+      floors * ITEMS.clock.points +
+      REWARD.scoreSlack;
+    expect(maxPossibleJumpScore()).toBe(expected);
+    expect(maxPossibleJumpScore()).toBeGreaterThan(maxPossibleScore());
   });
 });
 
