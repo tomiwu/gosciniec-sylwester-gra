@@ -1,4 +1,11 @@
-import { CODES, REWARD, isNicknameValid, isScoreSane } from "../config";
+import {
+  ANTI_CHEAT,
+  CODES,
+  REWARD,
+  isNicknameValid,
+  isScoreSane,
+} from "../config";
+import { summaryIsConsistent } from "../game/replay";
 import {
   type RandomInt,
   codeStatus,
@@ -18,6 +25,8 @@ import type {
   DiscountKind,
   RedeemResult,
   ReferralStatus,
+  RoundRow,
+  RoundStart,
   ScoreBackend,
   ScoreRow,
   StaffBackend,
@@ -31,6 +40,23 @@ type ScoreRecord = {
   hidden: boolean;
   /** The first device that saved this nickname owns it. */
   deviceId: string;
+  verified: boolean;
+};
+
+type RoundRecord = {
+  id: string;
+  token: string;
+  seed: number;
+  deviceId: string;
+  startedAt: number;
+  used: boolean;
+  score: number;
+  wallMs: number;
+  nickname: string;
+  inputLog: string;
+  flags: string[];
+  replayOk: boolean | null;
+  summary: { glass: number; star: number; clock: number; hits: number };
 };
 
 type CodeRecord = {
@@ -53,6 +79,7 @@ type State = {
   scores: Map<string, ScoreRecord>;
   codes: Map<string, CodeRecord>;
   tokens: Map<string, CodeRecord>;
+  rounds: Map<string, RoundRecord>;
   now: () => Date;
   randomInt: RandomInt;
 };
@@ -91,11 +118,18 @@ function recordScore(state: State, input: SubmitInput): boolean {
   if (!previous) {
     const nickname = input.nickname.trim();
     const { score, deviceId } = input;
-    state.scores.set(key, { nickname, score, hidden: false, deviceId });
+    state.scores.set(key, {
+      nickname,
+      score,
+      hidden: false,
+      deviceId,
+      verified: true,
+    });
     return true;
   }
   if (previous.deviceId !== input.deviceId) return false;
   previous.score = Math.max(previous.score, input.score);
+  if (input.roundId) previous.verified = true;
   return true;
 }
 
@@ -166,12 +200,123 @@ function issue(state: State, input: SubmitInput): SubmitResult {
   return codeResult(addCode(state, input, code));
 }
 
+function startRound(state: State, deviceId: string): RoundStart | null {
+  if (!isDeviceIdValid(deviceId)) return null;
+  const hourAgo = state.now().getTime() - 60 * 60 * 1000;
+  const dayAgo = state.now().getTime() - 24 * 60 * 60 * 1000;
+  const mine = [...state.rounds.values()].filter(
+    (row) => row.deviceId === deviceId,
+  );
+  if (
+    mine.filter((row) => row.startedAt >= hourAgo).length >=
+    ANTI_CHEAT.roundsPerHour
+  )
+    return null;
+  if (
+    mine.filter((row) => row.startedAt >= dayAgo).length >=
+    ANTI_CHEAT.roundsPerDay
+  )
+    return null;
+  const id = `rnd-${state.rounds.size + 1}`;
+  const token = `T${state.rounds.size + 1}`;
+  const seed = (state.randomInt(0xfffffffe) + 1) >>> 0;
+  state.rounds.set(id, {
+    id,
+    token,
+    seed,
+    deviceId,
+    startedAt: state.now().getTime(),
+    used: false,
+    score: 0,
+    wallMs: 0,
+    nickname: "",
+    inputLog: "",
+    flags: [],
+    replayOk: null,
+    summary: { glass: 0, star: 0, clock: 0, hits: 0 },
+  });
+  return { id, token, seed };
+}
+
+function findRound(
+  state: State,
+  input: SubmitInput,
+): RoundRecord | "legacy" | "bad" {
+  if (!input.roundId || !input.token) return "legacy";
+  const round = state.rounds.get(input.roundId);
+  if (!round || !tokenMatches(round, input)) return "bad";
+  return round;
+}
+
+function tokenMatches(round: RoundRecord, input: SubmitInput): boolean {
+  return round.token === input.token && round.deviceId === input.deviceId;
+}
+
+function ageError(age: number): string | null {
+  if (age < ANTI_CHEAT.minWallMs) return "too_short";
+  return age > ANTI_CHEAT.maxAgeMs ? "expired" : null;
+}
+
+function payloadError(input: SubmitInput): string | null {
+  if (!input.summary || !summaryIsConsistent(input.summary, input.score))
+    return "summary";
+  return input.score > 0 && !input.inputLog ? "log" : null;
+}
+
+function applyRound(round: RoundRecord, input: SubmitInput, age: number): void {
+  round.used = true;
+  round.score = input.score;
+  round.wallMs = input.wallMs ?? age;
+  round.nickname = input.nickname.trim();
+  round.inputLog = input.inputLog ?? "";
+  round.summary = input.summary ?? round.summary;
+}
+
+function roundError(
+  found: RoundRecord,
+  age: number,
+  input: SubmitInput,
+): string | null {
+  if (found.used) return "used";
+  return ageError(age) ?? payloadError(input);
+}
+
+function submitRound(state: State, input: SubmitInput): SubmitResult | null {
+  const found = findRound(state, input);
+  if (found === "legacy") return null;
+  if (found === "bad") return reject("round");
+  const age = state.now().getTime() - found.startedAt;
+  const error = roundError(found, age, input);
+  if (error) return reject(error);
+  applyRound(found, input, age);
+  return null;
+}
+
 function submit(state: State, input: SubmitInput): SubmitResult {
   const error = inputError(input);
   if (error) return reject(error);
+  const roundError = submitRound(state, input);
+  if (roundError) return roundError;
   if (!recordScore(state, input)) return reject("nickname_taken");
   countReferral(state, input);
   return issue(state, input);
+}
+
+function listTopRounds(state: State, limit: number): RoundRow[] {
+  return [...state.rounds.values()]
+    .filter((row) => row.used)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((row) => ({
+      id: row.id,
+      nickname: row.nickname,
+      score: row.score,
+      wallMs: row.wallMs,
+      startedAt: new Date(row.startedAt).toISOString(),
+      flags: row.flags,
+      replayOk: row.replayOk,
+      summary: row.summary,
+    }));
 }
 
 function toCheck(record: CodeRecord, now: Date): CodeCheck {
@@ -239,7 +384,7 @@ function hideNickname(state: State, nickname: string): boolean {
 
 function top(state: State, limit: number): ScoreRow[] {
   return [...state.scores.values()]
-    .filter((row) => !row.hidden)
+    .filter((row) => !row.hidden && row.verified)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(({ nickname, score }) => ({ nickname, score }));
@@ -301,10 +446,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     scores: new Map(),
     codes: new Map(),
     tokens: new Map(),
+    rounds: new Map(),
     now: options.now ?? (() => new Date()),
     randomInt: options.randomInt ?? cryptoRandomInt,
   };
   return {
+    startRound: async (deviceId) => startRound(state, deviceId),
     submit: async (input) => submit(state, input),
     top: async (limit) => top(state, limit),
     referralStatus: async (code) => referralStatus(state, code),
@@ -315,5 +462,18 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     listCodes: async (limit, offset) => listCodes(state, limit, offset),
     stats: async () => stats(state),
     hideNickname: async (nickname) => hideNickname(state, nickname),
+    listTopRounds: async (limit) => listTopRounds(state, limit),
+    confirmReplay: async (roundId, ok, flags) => {
+      const row = state.rounds.get(roundId);
+      if (!row) return false;
+      row.replayOk = ok;
+      row.flags = [...flags];
+      return true;
+    },
+    getRoundLog: async (roundId) => {
+      const row = state.rounds.get(roundId);
+      if (!row) return null;
+      return { seed: row.seed, inputLog: row.inputLog, score: row.score };
+    },
   };
 }

@@ -10,7 +10,10 @@ export type StaffRpcName =
   | "list_codes"
   | "dashboard_stats"
   | "hide_nickname"
-  | "leaderboard";
+  | "leaderboard"
+  | "list_top_rounds"
+  | "get_round_log"
+  | "confirm_replay";
 
 export type StaffRpcResult = {
   ok: boolean;
