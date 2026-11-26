@@ -381,3 +381,70 @@ describe("Supabase adapter errors", () => {
     });
   });
 });
+
+describe("createSupabaseBackend referrals", () => {
+  function player(status: number, body: unknown) {
+    const fake = fakeFetch(status, body);
+    const backend = createSupabaseBackend({
+      url: URL_BASE,
+      anonKey: ANON,
+      fetch: fake.fetchFn,
+    });
+    return { ...fake, backend };
+  }
+
+  it("reads the referral status of a code", async () => {
+    const { calls, backend } = player(200, {
+      token: "ABCDEFGH23",
+      referral_progress: 2,
+      referral_needed: 5,
+      discount_percent: 10,
+    });
+    await expect(backend.referralStatus(" syl-7k2p ")).resolves.toEqual({
+      token: "ABCDEFGH23",
+      progress: 2,
+      needed: 5,
+      discountPercent: 10,
+    });
+    expect(calls[0]?.url).toBe(`${URL_BASE}/rest/v1/rpc/referral_status`);
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+      p_code: "SYL-7K2P",
+    });
+    expect(header(calls[0], "Authorization")).toBe(`Bearer ${ANON}`);
+  });
+
+  it("returns null for an unknown code", async () => {
+    const { backend } = player(200, null);
+    await expect(backend.referralStatus("SYL-ZZZZ")).resolves.toBeNull();
+  });
+
+  it("returns null when the database does not have the RPC yet", async () => {
+    const { backend } = player(404, { code: "PGRST202", message: "missing" });
+    await expect(backend.referralStatus("SYL-7K2P")).resolves.toBeNull();
+  });
+
+  it("records a finished referred round", async () => {
+    const { calls, backend } = player(200, true);
+    await expect(
+      backend.recordReferralFinish("ABCDEFGH23", "device-2"),
+    ).resolves.toBe(true);
+    expect(calls[0]?.url).toBe(
+      `${URL_BASE}/rest/v1/rpc/record_referral_finish`,
+    );
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+      p_token: "ABCDEFGH23",
+      p_device_id: "device-2",
+    });
+  });
+
+  it("returns false when the record call fails", async () => {
+    const backend = createSupabaseBackend({
+      url: URL_BASE,
+      anonKey: ANON,
+      fetch: offline(),
+    });
+    await expect(backend.recordReferralFinish("ABCDEFGH23", "d")).resolves.toBe(
+      false,
+    );
+  });
+});

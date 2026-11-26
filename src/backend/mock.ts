@@ -1,4 +1,4 @@
-import { REWARD, isNicknameValid, isScoreSane } from "../config";
+import { CODES, REWARD, isNicknameValid, isScoreSane } from "../config";
 import {
   type RandomInt,
   codeStatus,
@@ -17,6 +17,7 @@ import type {
   DashboardStats,
   DiscountKind,
   RedeemResult,
+  ReferralStatus,
   ScoreBackend,
   ScoreRow,
   StaffBackend,
@@ -24,7 +25,13 @@ import type {
   SubmitResult,
 } from "./types";
 
-type ScoreRecord = { nickname: string; score: number; hidden: boolean };
+type ScoreRecord = {
+  nickname: string;
+  score: number;
+  hidden: boolean;
+  /** The first device that saved this nickname owns it. */
+  deviceId: string;
+};
 
 type CodeRecord = {
   code: string;
@@ -36,13 +43,16 @@ type CodeRecord = {
   earnedAt: string;
   usedAt: string | null;
   note: string | null;
-  /** One entry per referred device id + nickname. */
+  /** One entry per referred device id. */
   referrals: Set<string>;
+  /** Share-link token. It is made on the first referral status call. */
+  token: string | null;
 };
 
 type State = {
   scores: Map<string, ScoreRecord>;
   codes: Map<string, CodeRecord>;
+  tokens: Map<string, CodeRecord>;
   now: () => Date;
   randomInt: RandomInt;
 };
@@ -74,15 +84,19 @@ function inputError(input: SubmitInput): string | null {
   return isDeviceIdValid(input.deviceId) ? null : "device";
 }
 
-function recordScore(state: State, input: SubmitInput): void {
+/** False when another device owns the nickname. Then nothing changes. */
+function recordScore(state: State, input: SubmitInput): boolean {
   const key = nicknameKey(input.nickname);
   const previous = state.scores.get(key);
   if (!previous) {
     const nickname = input.nickname.trim();
-    state.scores.set(key, { nickname, score: input.score, hidden: false });
-    return;
+    const { score, deviceId } = input;
+    state.scores.set(key, { nickname, score, hidden: false, deviceId });
+    return true;
   }
+  if (previous.deviceId !== input.deviceId) return false;
   previous.score = Math.max(previous.score, input.score);
+  return true;
 }
 
 function isSelfReferral(referrer: CodeRecord, input: SubmitInput): boolean {
@@ -101,7 +115,7 @@ function findReferrer(state: State, input: SubmitInput): CodeRecord | null {
 function countReferral(state: State, input: SubmitInput): void {
   const referrer = findReferrer(state, input);
   if (!referrer) return;
-  referrer.referrals.add(`${input.deviceId}\n${nicknameKey(input.nickname)}`);
+  referrer.referrals.add(input.deviceId);
   if (referrer.referrals.size >= REWARD.referralNeeded) referrer.kind = "share";
 }
 
@@ -125,6 +139,7 @@ function addCode(state: State, input: SubmitInput, code: string): CodeRecord {
     usedAt: null,
     note: null,
     referrals: new Set(),
+    token: null,
   };
   state.codes.set(code, record);
   return record;
@@ -154,7 +169,7 @@ function issue(state: State, input: SubmitInput): SubmitResult {
 function submit(state: State, input: SubmitInput): SubmitResult {
   const error = inputError(input);
   if (error) return reject(error);
-  recordScore(state, input);
+  if (!recordScore(state, input)) return reject("nickname_taken");
   countReferral(state, input);
   return issue(state, input);
 }
@@ -230,6 +245,53 @@ function top(state: State, limit: number): ScoreRow[] {
     .map(({ nickname, score }) => ({ nickname, score }));
 }
 
+const TOKEN_ALPHABET = CODES.alphabet;
+const TOKEN_LENGTH = 10;
+
+function newToken(state: State): string {
+  let token = "";
+  for (let i = 0; i < TOKEN_LENGTH; i += 1) {
+    token += TOKEN_ALPHABET[state.randomInt(TOKEN_ALPHABET.length)];
+  }
+  return state.tokens.has(token) ? newToken(state) : token;
+}
+
+function tokenFor(state: State, record: CodeRecord): string {
+  if (record.token) return record.token;
+  const token = newToken(state);
+  record.token = token;
+  state.tokens.set(token, record);
+  return token;
+}
+
+function referralStatus(state: State, code: string): ReferralStatus | null {
+  const record = state.codes.get(normalizeCode(code));
+  if (!record) return null;
+  return {
+    token: tokenFor(state, record),
+    progress: Math.min(record.referrals.size, REWARD.referralNeeded),
+    needed: REWARD.referralNeeded,
+    discountPercent: discountFor(record.kind).percent,
+  };
+}
+
+function canCount(record: CodeRecord | undefined, deviceId: string): boolean {
+  if (!record || !isDeviceIdValid(deviceId)) return false;
+  return record.deviceId !== deviceId && !record.referrals.has(deviceId);
+}
+
+function recordReferralFinish(
+  state: State,
+  token: string,
+  deviceId: string,
+): boolean {
+  const record = state.tokens.get(token.trim().toUpperCase());
+  if (!record || !canCount(record, deviceId)) return false;
+  record.referrals.add(deviceId);
+  if (record.referrals.size >= REWARD.referralNeeded) record.kind = "share";
+  return true;
+}
+
 /**
  * In-memory backend for local play and for tests. It does not use the network.
  * It follows the same rules as the SQL functions in `supabase/migrations/`.
@@ -238,12 +300,16 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const state: State = {
     scores: new Map(),
     codes: new Map(),
+    tokens: new Map(),
     now: options.now ?? (() => new Date()),
     randomInt: options.randomInt ?? cryptoRandomInt,
   };
   return {
     submit: async (input) => submit(state, input),
     top: async (limit) => top(state, limit),
+    referralStatus: async (code) => referralStatus(state, code),
+    recordReferralFinish: async (token, deviceId) =>
+      recordReferralFinish(state, token, deviceId),
     check: async (code) => check(state, code),
     redeem: async (code, note) => redeem(state, code, note),
     listCodes: async (limit, offset) => listCodes(state, limit, offset),

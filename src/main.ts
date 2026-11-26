@@ -1,4 +1,11 @@
-import { FEEDBACK, FIELD, OFFER, REWARD, formatOfferPrice } from "./config";
+import {
+  FEEDBACK,
+  FIELD,
+  LEADERBOARD,
+  OFFER,
+  REWARD,
+  formatOfferPrice,
+} from "./config";
 import { catchSparks, createEffects, type Effects } from "./game/effects";
 import { selectBackend } from "./backend/select";
 import { logoUrl, loadArt, type GameArt } from "./game/art";
@@ -7,6 +14,24 @@ import { createGame } from "./game/game";
 import { clientToFieldX, createInput } from "./game/input";
 import { runRound } from "./game/session";
 import { remainingForSlot } from "./game/views";
+import {
+  escapeHtml,
+  isShareBonus,
+  leaderboardHtml,
+  loadPlayer,
+  markRefReported,
+  pendingRef,
+  progressText,
+  readRefToken,
+  referralUrl,
+  rememberRef,
+  savePlayer,
+  shareLink,
+  telHref,
+  type KeyStore,
+  type ShareNavigator,
+} from "./game/end-screen";
+import type { ReferralStatus, ScoreRow, SubmitResult } from "./backend/types";
 import type { GameState } from "./game/types";
 import { pl } from "./i18n/pl";
 import "./styles.css";
@@ -143,7 +168,6 @@ function playShotEffects(): Effects {
 function bindClaim(state: GameState): void {
   const form = document.querySelector("#claim");
   const input = document.querySelector("#nick");
-  const codeBox = document.querySelector("#code-box");
   if (
     !(form instanceof HTMLFormElement) ||
     !(input instanceof HTMLInputElement)
@@ -152,14 +176,31 @@ function bindClaim(state: GameState): void {
   }
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    void redeem(state, input.value, codeBox, form);
+    void redeem(state, input.value, form);
   });
+}
+
+function storage(): KeyStore {
+  try {
+    return window.localStorage;
+  } catch {
+    return { getItem: () => null, setItem: () => undefined };
+  }
+}
+
+function showCode(result: SubmitResult, nickname: string): void {
+  const codeBox = document.querySelector("#code-box");
+  if (!codeBox) return;
+  const label =
+    result.discountPercent === REWARD.referralPercent
+      ? pl.discountReferral
+      : pl.discountUnlocked;
+  codeBox.innerHTML = `<p class="code">${pl.yourCode}: <strong>${escapeHtml(result.code)}</strong></p><p class="note">${label} · ${pl.playingAs} ${escapeHtml(nickname.trim())}</p>`;
 }
 
 async function redeem(
   state: GameState,
   nickname: string,
-  codeBox: Element | null,
   form?: HTMLFormElement | null,
 ): Promise<void> {
   const result = await backend.submit({
@@ -167,29 +208,125 @@ async function redeem(
     score: state.score,
     deviceId: deviceId(),
   });
-  if (!codeBox) return;
   if (result.accepted && result.code) {
-    const label =
-      result.discountPercent === REWARD.referralPercent
-        ? pl.discountReferral
-        : pl.discountUnlocked;
-    codeBox.innerHTML = `<p class="code">${pl.yourCode}: <strong>${result.code}</strong></p><p class="note">${label}</p>`;
+    savePlayer(storage(), result.code, nickname);
     form?.classList.add("is-hidden");
-    return;
+    showCode(result, nickname);
+    void showReferral(result.code);
+  } else if (result.reason === "nickname_taken") {
+    askOtherNick(state);
+  } else if (form) {
+    setCodeBox(`<p class="lock">${pl.discountLocked}</p>`);
   }
-  codeBox.innerHTML = `<p class="lock">${pl.discountLocked}</p>`;
+  void showBoard();
+}
+
+function setCodeBox(html: string): void {
+  const codeBox = document.querySelector("#code-box");
+  if (codeBox) codeBox.innerHTML = html;
+}
+
+/** Another device owns this nickname. Show the claim form again and ask for a new one. */
+function askOtherNick(state: GameState): void {
+  if (!document.querySelector("#claim")) {
+    document
+      .querySelector("#code-box")
+      ?.insertAdjacentHTML("beforebegin", claimForm());
+    bindClaim(state);
+  }
+  document.querySelector("#claim")?.classList.remove("is-hidden");
+  setCodeBox(`<p class="lock nick-taken" role="alert">${pl.nickTaken}</p>`);
+  const input = document.querySelector("#nick");
+  if (input instanceof HTMLInputElement) {
+    input.focus();
+    input.select();
+  }
+}
+
+function referralDots(done: number, needed: number): string {
+  let dots = "";
+  for (let i = 0; i < needed; i += 1) {
+    dots += `<span class="dot${i < done ? " on" : ""}"></span>`;
+  }
+  return `<span class="dots" aria-hidden="true">${dots}</span>`;
+}
+
+function referralProgress(status: ReferralStatus | null): string {
+  if (!status) return `<p class="note">${pl.referNoServer}</p>`;
+  const done = Math.min(status.progress, status.needed);
+  const line = isShareBonus(status) ? pl.referBonus : pl.referHow;
+  return `<p class="refer-how">${line}</p>
+    <p class="refer-progress">${referralDots(done, status.needed)}<span>${pl.referralProgress}: <strong>${progressText(status)}</strong></span></p>`;
+}
+
+async function showReferral(code: string): Promise<void> {
+  const box = document.querySelector("#refer");
+  if (!box) return;
+  const status = await backend.referralStatus(code);
+  const url = referralUrl(window.location.href, status?.token ?? null);
+  box.innerHTML = `<p class="refer-title">${pl.referTitle}</p>
+    ${referralProgress(status)}
+    <button type="button" class="btn secondary" id="share">${pl.referShare}</button>
+    <p class="note refer-msg" id="share-msg" role="status"></p>`;
+  box.classList.remove("is-hidden");
+  document.querySelector("#share")?.addEventListener("click", () => {
+    void onShare(url);
+  });
+}
+
+async function onShare(url: string): Promise<void> {
+  const outcome = await shareLink(navigator as ShareNavigator, {
+    title: `${pl.hotel} · ${pl.title} ${pl.year}`,
+    text: pl.shareMessage,
+    url,
+  });
+  const msg = document.querySelector("#share-msg");
+  if (!msg) return;
+  if (outcome === "copied") msg.textContent = pl.referCopied;
+  if (outcome === "failed") {
+    msg.innerHTML = `${pl.referManual}<input class="share-url" readonly value="${escapeHtml(url)}" />`;
+    const field = msg.querySelector("input");
+    field?.addEventListener("focus", () => field.select());
+  }
+}
+
+async function showBoard(): Promise<void> {
+  const box = document.querySelector("#board");
+  if (!box) return;
+  let rows: ScoreRow[] = [];
+  try {
+    rows = await backend.top(LEADERBOARD.topN);
+  } catch {
+    rows = [];
+  }
+  box.innerHTML = leaderboardHtml(rows, loadPlayer(storage()).nick, {
+    title: pl.leaderboard,
+    empty: pl.boardEmpty,
+  });
+}
+
+function reportReferral(): void {
+  const store = storage();
+  const token = pendingRef(store);
+  if (!token) return;
+  void backend.recordReferralFinish(token, deviceId()).then((counted) => {
+    if (counted) markRefReported(store, token);
+  });
+}
+
+function claimForm(): string {
+  return `<form class="claim" id="claim">
+        <input id="nick" name="nick" maxlength="16" autocomplete="nickname" required placeholder="${pl.enterName}" />
+        <button type="submit" class="btn" id="claim-btn">${pl.getCode}</button>
+      </form>`;
 }
 
 function showResult(state: GameState): void {
   const unlocked = state.score >= REWARD.discountScore;
-  const percent = unlocked ? REWARD.basePercent : 0;
-  const claim = unlocked
-    ? `<form class="claim" id="claim">
-        <input id="nick" name="nick" maxlength="16" autocomplete="nickname" required placeholder="${pl.enterName}" />
-        <button type="submit" class="btn" id="claim-btn">${pl.getCode}</button>
-      </form>
-      <div id="code-box"></div>`
-    : "";
+  const saved = loadPlayer(storage());
+  const known = Boolean(saved.code && saved.nick);
+  const percent = unlocked || known ? REWARD.basePercent : 0;
+  const phone = OFFER.reservationPhone;
   app.innerHTML = `
   <section class="panel" data-screen="end">
     ${brandLogo()}
@@ -197,27 +334,36 @@ function showResult(state: GameState): void {
     <p class="price">${pl.score}: ${state.score}</p>
     <p class="ornament">✦</p>
     ${offerCard(percent)}
-    ${claim}
+    ${unlocked && !known ? claimForm() : ""}
+    <div id="code-box"></div>
+    <div class="refer is-hidden" id="refer"></div>
     <div class="actions">
-      <button type="button" class="btn" id="play">${pl.playAgain}</button>
+      <a class="btn call" id="call" href="${telHref(phone)}">${pl.callBook}<span class="call-number">${phone}</span></a>
       <a class="btn secondary" id="book" href="${bookHref}">${pl.book}</a>
+      <button type="button" class="btn secondary" id="play">${pl.playAgain}</button>
     </div>
+    <div class="board" id="board"></div>
     <p class="credits">${pl.photoCredits}</p>
   </section>
 `;
   document.querySelector("#play")?.addEventListener("click", () => {
     void startGame();
   });
-  if (unlocked) bindClaim(state);
+  reportReferral();
+  if (known && saved.nick) {
+    void redeem(state, saved.nick);
+  } else {
+    if (unlocked) bindClaim(state);
+    void showBoard();
+  }
   const shotNick = params.get("nick");
-  if (unlocked && params.get("shot") === "end" && shotNick) {
+  if (unlocked && !known && params.get("shot") === "end" && shotNick) {
     const input = document.querySelector("#nick");
     if (input instanceof HTMLInputElement) input.value = shotNick;
     const shotForm = document.querySelector("#claim");
     void redeem(
       state,
       shotNick,
-      document.querySelector("#code-box"),
       shotForm instanceof HTMLFormElement ? shotForm : null,
     );
   }
@@ -282,6 +428,8 @@ export async function startGame(): Promise<void> {
     input.dispose();
   };
 }
+
+rememberRef(storage(), readRefToken(window.location.search));
 
 const shot = params.get("shot");
 if (shot === "play") void startGame();
