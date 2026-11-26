@@ -144,6 +144,38 @@ export const LEADERBOARD = {
   topN: 20,
 } as const;
 
+/** Staff panel at /panel/. Sign-in is with Kody. */
+export const STAFF = {
+  /** Kody usernames or Kody user ids that can use the panel. Tomasz adds reception accounts. */
+  allowList: ["tomiwu"],
+  /** Local dev only: the mock Kody user. Set another user with ?kodyUser=<name>. */
+  mockUsername: "tomiwu",
+  /** Same-origin staff API. The Kody fetch handler (issue #17) serves these routes. */
+  api: {
+    checkPath: "/api/staff/check",
+    redeemPath: "/api/staff/redeem",
+    /** GET with ?limit=&offset=. Rows have the `list_codes` shape. */
+    listPath: "/api/staff/codes",
+    /** GET. Body has the `dashboard_stats` shape. */
+    statsPath: "/api/staff/stats",
+    /** GET with ?limit=. Rows have the public `leaderboard` shape (nickname, score). Hidden nicks are not in it. */
+    leaderboardPath: "/api/staff/leaderboard",
+    /** POST { nickname }. Body is true (nick found and hidden) or false (no such nick). */
+    hidePath: "/api/staff/hide-nickname",
+    /** Same as the `list_codes` maximum page size. */
+    listPageSize: 500,
+    /** Safety stop: the client reads at most this many pages (10 000 codes). */
+    listMaxPages: 20,
+  },
+  /**
+   * First instant when a code is expired: 1 January 2027 00:00 Europe/Warsaw (CET, UTC+1).
+   * A code is valid until 31 December 2026, 23:59:59 Warsaw time.
+   */
+  codeExpiresAtIso: "2026-12-31T23:00:00.000Z",
+  /** Time zone for staff dates. */
+  timeZone: "Europe/Warsaw",
+} as const;
+
 /**
  * Return the clock slow factor for a catch streak.
  * streak 0 => minFactor (usually 1).
