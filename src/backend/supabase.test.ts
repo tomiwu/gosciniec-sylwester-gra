@@ -448,3 +448,102 @@ describe("createSupabaseBackend referrals", () => {
     );
   });
 });
+
+describe("round start, score, and staff verify RPCs", () => {
+  it("calls start_round and issue_round_score when a round token is present", async () => {
+    const start = fakeFetch(200, {
+      round_id: "r1",
+      token: "TOK",
+      seed: 42,
+    });
+    const backend = createSupabaseBackend({
+      url: URL_BASE,
+      anonKey: ANON,
+      fetch: start.fetchFn,
+    });
+    expect(await backend.startRound("device-ada")).toEqual({
+      id: "r1",
+      token: "TOK",
+      seed: 42,
+    });
+    expect(start.calls[0]?.url).toContain("/rpc/start_round");
+
+    const submit = fakeFetch(200, {
+      accepted: true,
+      code: "SYL-7K2P",
+      discount_percent: 10,
+    });
+    const scored = createSupabaseBackend({
+      url: URL_BASE,
+      anonKey: ANON,
+      fetch: submit.fetchFn,
+    });
+    const result = await scored.submit({
+      nickname: "AdaTest",
+      score: 0,
+      deviceId: "device-ada",
+      roundId: "r1",
+      token: "TOK",
+      summary: { glass: 0, star: 0, clock: 0, hits: 0 },
+      inputLog: "{}",
+      wallMs: 25000,
+    });
+    expect(result.accepted).toBe(true);
+    expect(submit.calls[0]?.url).toContain("/rpc/issue_round_score");
+  });
+
+  it("returns null when start_round is missing", async () => {
+    const backend = createSupabaseBackend({
+      url: URL_BASE,
+      anonKey: ANON,
+      fetch: offline(),
+    });
+    await expect(backend.startRound("device-ada")).resolves.toBeNull();
+  });
+
+  it("maps staff round list, log, and replay confirm", async () => {
+    const list = fakeFetch(200, [
+      {
+        id: "r1",
+        nickname: "Ada",
+        score: 200,
+        wall_ms: 25000,
+        started_at: "2026-11-26T00:00:00Z",
+        flags: [],
+        replay_ok: true,
+        summary: { glass: 1, star: 0, clock: 0, hits: 0 },
+      },
+    ]);
+    const staff = createSupabaseStaff({
+      url: URL_BASE,
+      anonKey: ANON,
+      accessToken: STAFF_TOKEN,
+      fetch: list.fetchFn,
+    });
+    const rows = await staff.listTopRounds(3);
+    expect(rows[0]?.id).toBe("r1");
+    expect(list.calls[0]?.url).toContain("/rpc/list_top_rounds");
+
+    const log = fakeFetch(200, { seed: 9, input_log: "{}", score: 10 });
+    const withLog = createSupabaseStaff({
+      url: URL_BASE,
+      anonKey: ANON,
+      accessToken: STAFF_TOKEN,
+      fetch: log.fetchFn,
+    });
+    expect(await withLog.getRoundLog("r1")).toEqual({
+      seed: 9,
+      inputLog: "{}",
+      score: 10,
+    });
+
+    const confirm = fakeFetch(200, true);
+    const withConfirm = createSupabaseStaff({
+      url: URL_BASE,
+      anonKey: ANON,
+      accessToken: STAFF_TOKEN,
+      fetch: confirm.fetchFn,
+    });
+    expect(await withConfirm.confirmReplay("r1", true, [])).toBe(true);
+  });
+});

@@ -1,4 +1,5 @@
 import { callStaffRpc, type StaffRpcName } from "./staff-rpc";
+import { verifyPackedLog } from "./verify-round";
 
 export const PACKAGE_LEAF = "gosciniec-sylwester-gra";
 
@@ -97,6 +98,7 @@ const GET_RPC: Record<
   },
   "/api/staff/stats": { rpc: "dashboard_stats", args: {} },
   "/api/staff/ranking": { rpc: "leaderboard", args: { p_limit: 50 } },
+  "/api/staff/rounds": { rpc: "list_top_rounds", args: { p_limit: 20 } },
 };
 
 const POST_RPC: Record<
@@ -120,6 +122,35 @@ const POST_RPC: Record<
   },
 };
 
+function logPayload(body: unknown): { score: number; inputLog: string } | null {
+  if (!body || typeof body !== "object") return null;
+  const row = body as { input_log?: unknown; score?: unknown };
+  return { score: Number(row.score), inputLog: String(row.input_log ?? "") };
+}
+
+async function verifyStaffRound(
+  request: Request,
+  deps: HandleDeps,
+): Promise<Response> {
+  const id = textField(await readJson(request), "roundId");
+  if (!id) return json(400, { error: "round" });
+  const found = await callStaffRpc("get_round_log", { p_round_id: id }, deps);
+  const log = logPayload(found.body);
+  if (!found.ok || !log) return json(found.status, found.body);
+  const result = verifyPackedLog(log.score, log.inputLog);
+  const saved = await callStaffRpc(
+    "confirm_replay",
+    { p_round_id: id, p_ok: result.ok, p_flags: result.flags },
+    deps,
+  );
+  return json(saved.status, {
+    ok: result.ok,
+    flags: result.flags,
+    replayedScore: result.replayedScore,
+    score: log.score,
+  });
+}
+
 async function staffRoute(
   request: Request,
   path: string,
@@ -132,12 +163,21 @@ async function staffRoute(
       ? postRpc(route.rpc, route.args, deps)
       : json(404, { error: "not_found" });
   }
-  if (method === "POST") {
-    const route = POST_RPC[path];
-    if (!route) return json(404, { error: "not_found" });
-    return postRpc(route.rpc, route.args(await readJson(request)), deps);
-  }
+  if (method === "POST") return staffPost(request, path, deps);
   return json(404, { error: "not_found" });
+}
+
+async function staffPost(
+  request: Request,
+  path: string,
+  deps: HandleDeps,
+): Promise<Response> {
+  if (path === "/api/staff/verify-round") {
+    return verifyStaffRound(request, deps);
+  }
+  const route = POST_RPC[path];
+  if (!route) return json(404, { error: "not_found" });
+  return postRpc(route.rpc, route.args(await readJson(request)), deps);
 }
 
 async function authorizeStaff(

@@ -1,5 +1,6 @@
 import { REWARD } from "../config";
 import { normalizeCode } from "./codes";
+import { toRoundRow, toRoundStart } from "./rounds";
 import {
   BackendError,
   type BackendErrorKind,
@@ -156,6 +157,17 @@ function submitArgs(input: SubmitInput): Row {
   };
 }
 
+function roundSubmitArgs(input: SubmitInput): Row {
+  return {
+    ...submitArgs(input),
+    p_round_id: input.roundId,
+    p_token: input.token,
+    p_summary: input.summary ?? null,
+    p_input_log: input.inputLog ?? "",
+    p_wall_ms: input.wallMs ?? null,
+  };
+}
+
 function toReferralStatus(row: unknown): ReferralStatus | null {
   if (row === null || typeof row !== "object") return null;
   const data = row as Row;
@@ -175,11 +187,19 @@ function toReferralStatus(row: unknown): ReferralStatus | null {
 export function createSupabaseBackend(config: SupabaseConfig): ScoreBackend {
   const target: RpcTarget = { ...config, token: config.anonKey };
   return {
-    submit: (input) =>
-      rpc(target, "issue_code", submitArgs(input)).then(
-        (row) => toSubmitResult(row as Row),
-        failedSubmit,
+    startRound: (deviceId) =>
+      rpc(target, "start_round", { p_device_id: deviceId }).then(
+        toRoundStart,
+        () => null,
       ),
+    submit: (input) =>
+      rpc(
+        target,
+        input.roundId && input.token ? "issue_round_score" : "issue_code",
+        input.roundId && input.token
+          ? roundSubmitArgs(input)
+          : submitArgs(input),
+      ).then((row) => toSubmitResult(row as Row), failedSubmit),
     top: async (limit) => {
       const rows = await rpc(target, "leaderboard", { p_limit: limit });
       return (rows as Row[]).map(toScoreRow);
@@ -222,5 +242,28 @@ export function createSupabaseStaff(config: SupabaseStaffConfig): StaffBackend {
     stats: async () => toStats((await rpc(target, "dashboard_stats")) as Row),
     hideNickname: async (nickname) =>
       Boolean(await rpc(target, "hide_nickname", { p_nickname: nickname })),
+    listTopRounds: async (limit) =>
+      ((await rpc(target, "list_top_rounds", { p_limit: limit })) as Row[]).map(
+        toRoundRow,
+      ),
+    confirmReplay: async (roundId, ok, flags) =>
+      Boolean(
+        await rpc(target, "confirm_replay", {
+          p_round_id: roundId,
+          p_ok: ok,
+          p_flags: flags,
+        }),
+      ),
+    getRoundLog: async (roundId) => {
+      const row = (await rpc(target, "get_round_log", {
+        p_round_id: roundId,
+      })) as Row | null;
+      if (!row) return null;
+      return {
+        seed: Number(row.seed),
+        inputLog: String(row.input_log),
+        score: Number(row.score),
+      };
+    },
   };
 }

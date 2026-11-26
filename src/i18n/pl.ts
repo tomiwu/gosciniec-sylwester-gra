@@ -87,6 +87,15 @@ export const pl = {
   panelError: "Nie udało się połączyć z panelem. Spróbuj ponownie.",
   panelEmptyList: "Brak kodów.",
   panelEmptyRanking: "Brak wyników.",
+  panelRounds: "Rundy do weryfikacji (top)",
+  panelWallTime: "Czas rundy",
+  panelFlags: "Flagi",
+  panelReplay: "Powtórka",
+  panelVerify: "Weryfikuj",
+  panelReplayOk: "Zgodna",
+  panelReplayBad: "Niezgodna",
+  panelReplayPending: "Do sprawdzenia",
+  panelEmptyRounds: "Brak rund z logiem.",
 } as const;
 
 export type PlKey = keyof typeof pl;

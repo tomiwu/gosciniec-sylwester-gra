@@ -29,6 +29,12 @@ export interface RoundDeps {
   readonly pauseAfterFirstFrame?: boolean;
   /** Called once, with the final state, when the round ends. */
   readonly onEnd: (state: GameState) => void;
+  /** Called after each simulation step, with the dt and input that were applied. */
+  readonly onStep?: (
+    dtMs: number,
+    input: import("./types").InputState,
+    state: GameState,
+  ) => void;
 }
 
 export function poseFromMove(
@@ -99,6 +105,7 @@ export function runRound(deps: RoundDeps): () => void {
     lastMs = timeMs;
     const input = deps.input.read();
     state = stepGame(state, dtMs, input, deps.rand);
+    deps.onStep?.(dtMs, input, state);
     fx = ageEffects(applyEvents(fx, state.events), dtMs);
     if (state.events.some((event) => event.kind === "catch")) {
       catchAgeMs = 0;

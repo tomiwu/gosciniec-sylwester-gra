@@ -1,4 +1,5 @@
 import { normalizeCode } from "../backend/codes";
+import { toRoundRow } from "../backend/rounds";
 import type {
   CodeCheck,
   CodeRow,
@@ -145,6 +146,39 @@ export function createSameOriginStaff(): StaffBackend {
       });
       return Boolean(body);
     },
+    async listTopRounds(limit) {
+      const rows = await staffFetch(`/api/staff/rounds?limit=${limit}`);
+      if (!Array.isArray(rows)) throw new BackendError("server", "Bad rounds.");
+      return rows.map(toRoundRow);
+    },
+    async confirmReplay() {
+      return false;
+    },
+    async getRoundLog() {
+      return null;
+    },
+  };
+}
+
+export async function verifyStaffRound(roundId: string): Promise<{
+  ok: boolean;
+  flags: string[];
+  replayedScore: number;
+  score: number;
+}> {
+  const body = asRow(
+    await staffFetch("/api/staff/verify-round", {
+      method: "POST",
+      body: JSON.stringify({ roundId }),
+    }),
+  );
+  return {
+    ok: Boolean(body.ok),
+    flags: Array.isArray(body.flags)
+      ? body.flags.map((flag) => String(flag))
+      : [],
+    replayedScore: Number(body.replayedScore),
+    score: Number(body.score),
   };
 }
 

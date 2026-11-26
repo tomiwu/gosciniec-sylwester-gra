@@ -3,13 +3,14 @@ import type {
   CodeRow,
   DashboardStats,
   DiscountKind,
+  RoundRow,
   ScoreRow,
   StaffBackend,
 } from "../backend/types";
 import { BackendError } from "../backend/types";
 import { pl } from "../i18n/pl";
 import type { KodySession, StaffAuth } from "./auth";
-import { fetchStaffRanking } from "./staff-api";
+import { fetchStaffRanking, verifyStaffRound } from "./staff-api";
 
 export const PANEL_SECTIONS = ["check", "list", "ranking"] as const;
 export type PanelSection = (typeof PANEL_SECTIONS)[number];
@@ -27,6 +28,7 @@ export type PanelState = {
   listKind?: "all" | DiscountKind;
   listUsed?: "all" | "open" | "used";
   ranking?: ScoreRow[];
+  rounds?: RoundRow[];
   hidePending?: string | null;
 };
 
@@ -82,7 +84,12 @@ export function createPanel(options: {
   async function refreshRanking(): Promise<void> {
     show({ busy: true, checkError: null });
     try {
-      show({ ranking: await loadRanking(), busy: false });
+      const ranking = await loadRanking();
+      let rounds: RoundRow[] = [];
+      if (options.staff?.listTopRounds) {
+        rounds = await options.staff.listTopRounds(20).catch(() => []);
+      }
+      show({ ranking, rounds, busy: false });
     } catch (error) {
       show({ busy: false, checkError: fail(error) });
     }
@@ -137,6 +144,16 @@ export function createPanel(options: {
     },
     cancelHide(): void {
       show({ hidePending: null });
+    },
+    async verifyRound(roundId: string): Promise<void> {
+      show({ busy: true, checkError: null });
+      try {
+        await verifyStaffRound(roundId);
+        show({ busy: false });
+        await refreshRanking();
+      } catch (error) {
+        show({ busy: false, checkError: fail(error) });
+      }
     },
     async hideNickname(): Promise<void> {
       const nickname = state.hidePending;
