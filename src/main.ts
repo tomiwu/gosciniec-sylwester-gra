@@ -1,6 +1,6 @@
 import { FEEDBACK, FIELD, OFFER, REWARD, formatOfferPrice } from "./config";
 import { catchSparks, createEffects, type Effects } from "./game/effects";
-import { createMockBackend } from "./backend/mock";
+import { selectBackend } from "./backend/select";
 import { logoUrl, loadArt, type GameArt } from "./game/art";
 import { placeItem } from "./game/depth";
 import { createGame } from "./game/game";
@@ -18,7 +18,10 @@ if (!(root instanceof HTMLElement)) {
 const app: HTMLElement = root;
 
 const bookHref = OFFER.bookingUrl;
-const backend = createMockBackend();
+/** The mock unless VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set. */
+const backend = selectBackend(import.meta.env, (input, init) =>
+  window.fetch(input, init),
+).player;
 const params = new URLSearchParams(window.location.search);
 let stopRound: (() => void) | null = null;
 let art: GameArt | null = null;

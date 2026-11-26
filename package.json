@@ -16,7 +16,8 @@
     "crap": "scripts/crap.sh",
     "precommit": "scripts/precommit.sh",
     "sandcastle": "npx tsx .sandcastle/main.mts",
-    "test:loop": "npx tsx .sandcastle/loop-policy-test.mts && bash scripts/test-stop-gate.sh"
+    "test:loop": "npx tsx .sandcastle/loop-policy-test.mts && bash scripts/test-stop-gate.sh",
+    "build:kody": "tsc --noEmit && vite build --base /_assets/"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "0.12.0",
@@ -32,5 +33,13 @@
     "typescript-eslint": "^8.46.2",
     "vite": "^7.1.12",
     "vitest": "4.0.8"
+  },
+  "kody": {
+    "id": "gosciniec-sylwester-gra",
+    "description": "NYE 2026/2027 game and staff panel for Hotel Gosciniec Uniejow.",
+    "app": {
+      "entry": "./src/kody/entry.ts",
+      "assets": "./dist"
+    }
   }
 }

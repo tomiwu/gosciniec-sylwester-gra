@@ -120,6 +120,22 @@ export const REWARD = {
   scoreSlack: 50,
 } as const;
 
+/** Discount code rules. Keep in sync with `supabase/migrations/`. */
+export const CODES = {
+  /**
+   * First instant when a code is expired: 1 January 2027 00:00 Europe/Warsaw (CET, UTC+1).
+   * A code is valid until 31 December 2026, 23:59:59 Warsaw time.
+   */
+  expiresAtIso: "2026-12-31T23:00:00.000Z",
+  suffixLength: 4,
+  /** 32 characters, no 0, 1, I or O, so staff can read a code aloud. */
+  alphabet: "23456789ABCDEFGHJKLMNPQRSTUVWXYZ",
+  /** Attempts to find a free suffix that is not a slice of the nickname. */
+  maxAttempts: 20,
+  /** A device id longer than this is rejected. */
+  deviceIdMaxLength: 100,
+} as const;
+
 export const OFFER = {
   title: "Sylwester 2026/2027",
   subtitle: "Oferta dla par",
@@ -142,6 +158,14 @@ export const OFFER = {
 
 export const LEADERBOARD = {
   topN: 20,
+} as const;
+
+/** Staff panel at /panel/. Sign-in is with Kody. */
+export const STAFF = {
+  /** Kody usernames or Kody user ids that can use the panel. Tomasz adds reception accounts. */
+  allowList: ["tomiwu"],
+  /** Local dev only: the mock Kody user. Set another user with ?kodyUser=<name>. */
+  mockUsername: "tomiwu",
 } as const;
 
 /**
