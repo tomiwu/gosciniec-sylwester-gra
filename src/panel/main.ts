@@ -59,12 +59,14 @@ app.addEventListener("click", (event) => {
   if (!button) return;
   const section = button.dataset.section;
   const hide = button.dataset.hide;
+  const verify = button.dataset.verify;
   if (button.id === "login") void panel.signIn();
   else if (button.id === "logout") void panel.signOut();
   else if (button.id === "redeem") void panel.redeem();
   else if (button.id === "hide-ok") void panel.hideNickname();
   else if (button.id === "hide-cancel") panel.cancelHide();
   else if (hide) panel.askHide(hide);
+  else if (verify) void panel.verifyRound(verify);
   else if (isPanelSection(section)) void panel.select(section);
 });
 

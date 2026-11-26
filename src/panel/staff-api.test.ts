@@ -3,6 +3,7 @@ import { BackendError } from "../backend/types";
 import {
   createSameOriginStaff,
   fetchStaffRanking,
+  verifyStaffRound,
   toCheck,
   toCodeRow,
   toScoreRow,
@@ -187,5 +188,27 @@ describe("fetchStaffRanking", () => {
       vi.fn(async () => jsonResponse(200, { no: "array" })),
     );
     await expect(fetchStaffRanking()).rejects.toMatchObject({ kind: "server" });
+  });
+});
+
+describe("verifyStaffRound", () => {
+  it("maps a verify-round response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse(200, {
+          ok: true,
+          flags: ["few_events"],
+          replayedScore: 10,
+          score: 10,
+        }),
+      ),
+    );
+    expect(await verifyStaffRound("r1")).toEqual({
+      ok: true,
+      flags: ["few_events"],
+      replayedScore: 10,
+      score: 10,
+    });
   });
 });

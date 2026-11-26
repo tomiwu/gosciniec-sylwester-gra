@@ -162,6 +162,27 @@ export const LEADERBOARD = {
   topN: 20,
 } as const;
 
+/** Server-side anti-cheat. Keep in sync with `supabase/migrations/`. */
+export const ANTI_CHEAT = {
+  /**
+   * Shortest honest wall time, in milliseconds.
+   * A round is about 25 s at factor 1 (`CLOCK.baseDurationMs`). Slack is 5 s.
+   */
+  minWallMs: 20_000,
+  /** Longest time from start_round to submit, in milliseconds (3 minutes). */
+  maxAgeMs: 180_000,
+  roundsPerHour: 20,
+  roundsPerDay: 60,
+  /** Cap for the packed input log, in bytes. */
+  logMaxBytes: 16_384,
+  /** Human-likeness flags only (they do not reject a score). */
+  minEvents: 8,
+  minXSpreadPx: 20,
+  /** Flag when the standard deviation of event intervals is below this. */
+  minIntervalStdMs: 8,
+  minReactionMs: 80,
+} as const;
+
 /** Staff panel at /panel/. Sign-in is with Kody. */
 export const STAFF = {
   /** Kody usernames or Kody user ids that can use the panel. Tomasz adds reception accounts. */

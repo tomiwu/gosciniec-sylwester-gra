@@ -47,6 +47,9 @@ function fakeStaff(overrides: Partial<StaffBackend> = {}): StaffBackend {
     ],
     stats: async () => ({ players: 1, codes: 1, shareCodes: 0, redeemed: 0 }),
     hideNickname: async () => true,
+    listTopRounds: async () => [],
+    confirmReplay: async () => true,
+    getRoundLog: async () => null,
     ...overrides,
   };
 }

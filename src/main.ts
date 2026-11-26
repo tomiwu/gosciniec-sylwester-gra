@@ -12,6 +12,9 @@ import { logoUrl, loadArt, type GameArt } from "./game/art";
 import { placeItem } from "./game/depth";
 import { createGame } from "./game/game";
 import { clientToFieldX, createInput } from "./game/input";
+import { createInputLog } from "./game/input-log";
+import { addEventToSummary, emptySummary } from "./game/replay";
+import { createRng, localSeed } from "./game/rng";
 import { runRound } from "./game/session";
 import { remainingForSlot } from "./game/views";
 import {
@@ -31,7 +34,12 @@ import {
   type KeyStore,
   type ShareNavigator,
 } from "./game/end-screen";
-import type { ReferralStatus, ScoreRow, SubmitResult } from "./backend/types";
+import type {
+  ReferralStatus,
+  RoundStart,
+  ScoreRow,
+  SubmitResult,
+} from "./backend/types";
 import type { GameState } from "./game/types";
 import { pl } from "./i18n/pl";
 import "./styles.css";
@@ -50,6 +58,9 @@ const backend = selectBackend(import.meta.env, (input, init) =>
 const params = new URLSearchParams(window.location.search);
 let stopRound: (() => void) | null = null;
 let art: GameArt | null = null;
+let pendingRound: RoundStart | null = null;
+let pendingLog = "";
+let pendingSummary = emptySummary();
 
 function deviceId(): string {
   const key = "syl-device";
@@ -207,6 +218,16 @@ async function redeem(
     nickname,
     score: state.score,
     deviceId: deviceId(),
+    ...(pendingRound
+      ? {
+          roundId: pendingRound.id,
+          token: pendingRound.token,
+          seed: pendingRound.seed,
+          summary: pendingSummary,
+          inputLog: pendingLog,
+          wallMs: state.elapsedRealMs,
+        }
+      : {}),
   });
   if (result.accepted && result.code) {
     savePlayer(storage(), result.code, nickname);
@@ -390,6 +411,10 @@ export async function startGame(): Promise<void> {
   canvas.width = FIELD.width * dpr;
   canvas.height = FIELD.height * dpr;
   ctx.scale(dpr, dpr);
+  pendingRound = await backend.startRound(deviceId());
+  const seed = pendingRound?.seed ?? localSeed();
+  const log = createInputLog();
+  let summary = emptySummary();
   const input = createInput({
     keys: window,
     pointer: canvas,
@@ -397,6 +422,7 @@ export async function startGame(): Promise<void> {
       const rect = canvas.getBoundingClientRect();
       return clientToFieldX(clientX, rect.left, rect.width, FIELD.width);
     },
+    onEvent: (event) => log.push(event),
   });
   const shotPlay = params.get("shot") === "play";
   const stop = runRound({
@@ -415,11 +441,23 @@ export async function startGame(): Promise<void> {
       : {}),
     requestFrame: (cb) => requestAnimationFrame(cb),
     cancelFrame: (handle) => cancelAnimationFrame(handle),
-    rand: Math.random,
+    rand: createRng(seed),
     labels: { score: pl.score, time: pl.time, photoCredits: pl.photoCredits },
+    onStep: (dtMs, inputState, state) => {
+      log.addStep(dtMs, inputState);
+      for (const event of state.events) {
+        summary = addEventToSummary(
+          summary,
+          event.kind,
+          event.kind === "catch" ? event.item : undefined,
+        );
+      }
+    },
     onEnd: (state) => {
       input.dispose();
       stopRound = null;
+      pendingLog = log.pack(seed);
+      pendingSummary = summary;
       showResult(state);
     },
   });
