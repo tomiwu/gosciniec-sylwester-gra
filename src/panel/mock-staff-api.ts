@@ -1,3 +1,4 @@
+import { LEADERBOARD } from "../config";
 import {
   normalizeCode,
   statusAt,
@@ -5,6 +6,7 @@ import {
   type CodeListEntry,
   type DashboardStats,
   type DiscountKind,
+  type LeaderboardRow,
   type StaffApi,
 } from "./staff-api";
 
@@ -101,25 +103,64 @@ function statsOf(codes: MockCode[], players: number): DashboardStats {
   };
 }
 
+/** Same match as `hide_nickname` in SQL: no case, no outer spaces. */
+function nicknameKey(nickname: string): string {
+  return nickname.trim().toLowerCase();
+}
+
+/** Best score first. A tie goes to the earlier score, like `leaderboard` in SQL. */
+function bestFirst(a: MockCode, b: MockCode): number {
+  return b.score - a.score || a.earnedAt.localeCompare(b.earnedAt);
+}
+
+function toRow(entry: MockCode): LeaderboardRow {
+  return { nickname: entry.nickname, score: entry.score };
+}
+
+/** The public player side. It can only read the top list. */
+export type MockPublicBoard = {
+  top(limit: number): Promise<LeaderboardRow[]>;
+};
+
 /**
- * In-memory staff API for local dev (no Kody handler) and tests.
+ * In-memory promotion for local dev (no Kody handler) and tests: the staff
+ * API and the public top list share one store.
  * It copies the seed list, so each instance has its own state.
  * `players` defaults to one player per code.
+ * A hidden nick goes into a hide set. The code row stays.
  */
-export function createMockStaffApi(options: {
+export function createMockPromo(options: {
   codes: readonly MockCode[];
   now: () => Date;
   players?: number;
-}): StaffApi {
+}): { staff: StaffApi; board: MockPublicBoard } {
   const store = new Map(options.codes.map((c) => [c.code, { ...c }]));
   const players = options.players ?? options.codes.length;
+  const hidden = new Set<string>();
 
   function check(raw: string): CodeCheck {
     const code = normalizeCode(raw);
     return toCheck(store.get(code), code, options.now());
   }
 
-  return {
+  function top(limit: number): LeaderboardRow[] {
+    return [...store.values()]
+      .filter((c) => !hidden.has(nicknameKey(c.nickname)))
+      .sort(bestFirst)
+      .slice(0, Math.max(0, limit))
+      .map(toRow);
+  }
+
+  function hide(nickname: string): boolean {
+    const key = nicknameKey(nickname);
+    const found = [...store.values()].some(
+      (c) => nicknameKey(c.nickname) === key,
+    );
+    if (found) hidden.add(key);
+    return found;
+  }
+
+  const staff: StaffApi = {
     checkCode: (raw) => Promise.resolve(check(raw)),
     redeemCode(raw) {
       const before = check(raw);
@@ -134,5 +175,15 @@ export function createMockStaffApi(options: {
       Promise.resolve([...store.values()].sort(newestFirst).map(toEntry)),
     dashboardStats: () =>
       Promise.resolve(statsOf([...store.values()], players)),
+    leaderboard: () => Promise.resolve(top(LEADERBOARD.topN)),
+    hideNickname: (nickname) => Promise.resolve(hide(nickname)),
   };
+  return { staff, board: { top: (limit) => Promise.resolve(top(limit)) } };
+}
+
+/** The staff side of a new mock promotion. */
+export function createMockStaffApi(
+  options: Parameters<typeof createMockPromo>[0],
+): StaffApi {
+  return createMockPromo(options).staff;
 }

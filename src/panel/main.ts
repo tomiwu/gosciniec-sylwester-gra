@@ -11,6 +11,8 @@ import { INITIAL_CODE_LIST, createCodeList, parseFilter } from "./code-list";
 import { renderCodeList } from "./code-list-view";
 import { createPanel, isPanelSection, type PanelState } from "./controller";
 import { MOCK_CODES, MOCK_PLAYERS, createMockStaffApi } from "./mock-staff-api";
+import { INITIAL_RANKING, createRanking } from "./ranking";
+import { renderRanking } from "./ranking-view";
 import { createHttpStaffApi, type StaffApi } from "./staff-api";
 import { renderPanel } from "./view";
 import "../styles.css";
@@ -46,6 +48,7 @@ function staffApi(): StaffApi {
 let panelState: PanelState | null = null;
 let checkState = INITIAL_CODE_CHECK;
 let listState = INITIAL_CODE_LIST;
+let rankingState = INITIAL_RANKING;
 
 function draw(): void {
   if (!panelState) return;
@@ -53,6 +56,7 @@ function draw(): void {
     panelState,
     renderCodeCheck(checkState),
     renderCodeList(listState, new Date()),
+    renderRanking(rankingState),
   );
 }
 
@@ -68,6 +72,14 @@ const codeList = createCodeList({
   api,
   render: (state) => {
     listState = state;
+    draw();
+  },
+});
+
+const ranking = createRanking({
+  api,
+  render: (state) => {
+    rankingState = state;
     draw();
   },
 });
@@ -97,12 +109,19 @@ app.addEventListener("click", (event) => {
   else if (button.id === "logout") {
     codeCheck.reset();
     codeList.reset();
+    ranking.reset();
     void panel.signOut();
   } else if (button.id === "redeem") void codeCheck.redeem();
   else if (button.id === "code-list-refresh") void codeList.load();
-  else if (isPanelSection(section)) {
+  else if (button.id === "ranking-refresh") void ranking.load();
+  else if (button.id === "ranking-hide-confirm") void ranking.confirmHide();
+  else if (button.id === "ranking-hide-cancel") ranking.cancelHide();
+  else if (button.dataset.hideNick !== undefined) {
+    ranking.askHide(button.dataset.hideNick);
+  } else if (isPanelSection(section)) {
     panel.select(section);
     if (section === "list") void codeList.load();
+    if (section === "ranking") void ranking.load();
   }
 });
 

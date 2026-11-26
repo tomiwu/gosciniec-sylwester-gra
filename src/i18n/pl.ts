@@ -84,6 +84,25 @@ export const pl = {
   panelListNoMatch: "Brak kodów dla wybranych filtrów.",
   panelListFailed:
     "Nie udało się wczytać listy kodów. Sprawdź połączenie i spróbuj ponownie za chwilę.",
+  panelFieldPlace: "Miejsce",
+  panelFieldScore: "Wynik",
+  panelFieldAction: "Akcja",
+  panelRankingHint:
+    "Ta sama kolejność co w publicznym rankingu. Ukryty nick znika z rankingu, ale kod gracza dalej działa.",
+  panelRankingHide: "Usuń nick",
+  panelRankingConfirm: "Ukryć ten nick z rankingu?",
+  panelRankingConfirmYes: "Ukryj",
+  panelRankingConfirmNo: "Anuluj",
+  panelRankingHidden: "Nick ukryto w rankingu",
+  panelRankingCodeKept:
+    "Kod tego gracza nadal można sprawdzić i oznaczyć jako wykorzystany.",
+  panelRankingMissing: "Nie znaleziono nicku",
+  panelRankingLoading: "Wczytywanie rankingu…",
+  panelRankingEmpty: "W rankingu nie ma jeszcze żadnego gracza.",
+  panelRankingFailed:
+    "Nie udało się wczytać rankingu. Sprawdź połączenie i spróbuj ponownie za chwilę.",
+  panelRankingHideFailed:
+    "Nie udało się ukryć nicku. Sprawdź połączenie i spróbuj ponownie za chwilę.",
 } as const;
 
 export type PlKey = keyof typeof pl;

@@ -89,16 +89,19 @@ function shellView(
 
 /**
  * HTML for the panel. Only an allow-listed Kody session gets the staff shell.
- * `checkView` is the code-check HTML for the check section and `listView`
- * is the code-list HTML for the list section.
+ * `checkView` is the code-check HTML for the check section, `listView`
+ * is the code-list HTML for the list section and `rankingView` is the
+ * ranking HTML for the ranking section.
  */
 export function renderPanel(
   state: PanelState,
   checkView = "",
   listView = "",
+  rankingView = "",
 ): string {
   const { session } = state;
   if (!session) return loginView();
   if (!isStaff(session, state.allowList)) return deniedView(session);
-  return shellView(state, session, { check: checkView, list: listView });
+  const views = { check: checkView, list: listView, ranking: rankingView };
+  return shellView(state, session, views);
 }

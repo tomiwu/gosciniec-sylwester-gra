@@ -176,3 +176,24 @@
 .code-table .code-status[data-status="expired"] {
   color: var(--color-red);
 }
+
+.ranking-table td:first-child,
+.ranking-table td:nth-child(3) {
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-hide {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.ranking-confirm {
+  margin: 0 0 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--color-gold);
+  border-radius: 0.4rem;
+}
+
+.ranking-confirm p {
+  margin: 0 0 0.6rem;
+}

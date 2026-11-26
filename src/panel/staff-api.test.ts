@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { STAFF } from "../config";
+import { LEADERBOARD, STAFF } from "../config";
 import {
   StaffApiError,
   createHttpStaffApi,
   parseCheck,
+  parseLeaderboardRow,
   parseListEntry,
   parseStats,
   statusAt,
@@ -306,6 +307,94 @@ describe("createHttpStaffApi list and stats", () => {
     const { fn } = fakeFetch(() => jsonResponse({ error: "x" }, 401));
     await expect(
       createHttpStaffApi(fn).dashboardStats(),
+    ).rejects.toBeInstanceOf(StaffApiError);
+  });
+});
+
+describe("parseLeaderboardRow", () => {
+  it("keeps only the nickname and the score", () => {
+    const row = parseLeaderboardRow({
+      nickname: "BadNick",
+      score: 300,
+      code: "SYL-BAD1",
+      device_id: "device-test-1",
+    });
+    expect(row).toEqual({ nickname: "BadNick", score: 300 });
+  });
+
+  it("rejects a row with no nickname or a bad score", () => {
+    expect(() => parseLeaderboardRow(null)).toThrow(StaffApiError);
+    expect(() => parseLeaderboardRow({ score: 1 })).toThrow(StaffApiError);
+    expect(() =>
+      parseLeaderboardRow({ nickname: "BadNick", score: -1 }),
+    ).toThrow(StaffApiError);
+  });
+});
+
+describe("createHttpStaffApi ranking and hide", () => {
+  it("gets the ranking from the same-origin route at the top-list size", async () => {
+    const body = [
+      { nickname: "BadNick", score: 300 },
+      { nickname: "GoodNick", score: 250 },
+    ];
+    const { fn, calls } = fakeFetch(() => jsonResponse(body));
+    const rows = await createHttpStaffApi(fn).leaderboard();
+    expect(rows).toEqual(body);
+    expect(calls).toHaveLength(1);
+    const [call] = calls;
+    expect(call?.url).toBe(
+      `${STAFF.api.leaderboardPath}?limit=${LEADERBOARD.topN}`,
+    );
+    expect(call?.url.startsWith("/api/staff/")).toBe(true);
+    expect(call?.init?.method).toBe("GET");
+    expect(call?.init?.credentials).toBe("same-origin");
+  });
+
+  it("throws a StaffApiError when the ranking body is not an array", async () => {
+    const { fn } = fakeFetch(() => jsonResponse({ rows: [] }));
+    await expect(createHttpStaffApi(fn).leaderboard()).rejects.toBeInstanceOf(
+      StaffApiError,
+    );
+  });
+
+  it("posts the trimmed nick to the same-origin hide route", async () => {
+    const { fn, calls } = fakeFetch(() => jsonResponse(true));
+    expect(await createHttpStaffApi(fn).hideNickname("  BadNick ")).toBe(true);
+    expect(calls).toHaveLength(1);
+    const [call] = calls;
+    expect(call?.url).toBe(STAFF.api.hidePath);
+    expect(call?.url.startsWith("/api/staff/")).toBe(true);
+    expect(call?.init?.method).toBe("POST");
+    expect(call?.init?.credentials).toBe("same-origin");
+    expect(call?.init?.body).toBe(JSON.stringify({ nickname: "BadNick" }));
+    const headers = JSON.stringify(call?.init?.headers ?? {});
+    expect(headers.toLowerCase()).not.toContain("authorization");
+    expect(headers.toLowerCase()).not.toContain("apikey");
+  });
+
+  it("returns false when the server found no such nick", async () => {
+    const { fn } = fakeFetch(() => jsonResponse(false));
+    expect(await createHttpStaffApi(fn).hideNickname("NoSuchNick")).toBe(false);
+  });
+
+  it("can send the same hide twice", async () => {
+    const { fn, calls } = fakeFetch(() => jsonResponse(true));
+    const api = createHttpStaffApi(fn);
+    expect(await api.hideNickname("BadNick")).toBe(true);
+    expect(await api.hideNickname("BadNick")).toBe(true);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("throws a StaffApiError for a body that is not true or false, or an HTTP error", async () => {
+    const odd = fakeFetch(() => jsonResponse({ hidden: "yes" })).fn;
+    await expect(
+      createHttpStaffApi(odd).hideNickname("BadNick"),
+    ).rejects.toBeInstanceOf(StaffApiError);
+    const denied = fakeFetch(() =>
+      jsonResponse({ error: "forbidden" }, 403),
+    ).fn;
+    await expect(
+      createHttpStaffApi(denied).hideNickname("BadNick"),
     ).rejects.toBeInstanceOf(StaffApiError);
   });
 });

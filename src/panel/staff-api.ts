@@ -1,10 +1,10 @@
-import { STAFF } from "../config";
+import { LEADERBOARD, STAFF } from "../config";
 
 /**
  * Staff API client for the panel. The browser calls only the same-origin
  * staff routes. The Kody fetch handler (issue #17) checks the staff session
- * and calls the Supabase RPCs `check_code`, `redeem_code`, `list_codes` and
- * `dashboard_stats` on the server.
+ * and calls the Supabase RPCs `check_code`, `redeem_code`, `list_codes`,
+ * `dashboard_stats`, `leaderboard` and `hide_nickname` on the server.
  * The browser never holds the service role and never calls a staff RPC.
  */
 export type CodeStatus = "valid" | "already_used" | "unknown" | "expired";
@@ -61,7 +61,24 @@ export type CodeListApi = {
   dashboardStats(): Promise<DashboardStats>;
 };
 
-export type StaffApi = CodeCheckApi & CodeListApi;
+/** One row of the top list: nickname and score only, like the public list. */
+export type LeaderboardRow = {
+  nickname: string;
+  score: number;
+};
+
+export type RankingApi = {
+  /** The public top list (hidden nicks left out), best score first. */
+  leaderboard(): Promise<LeaderboardRow[]>;
+  /**
+   * Hide a nick from the public top list. The code row stays, so the code
+   * still checks and redeems. True when the nick exists (also when it was
+   * hidden before), false when no score has this nick.
+   */
+  hideNickname(nickname: string): Promise<boolean>;
+};
+
+export type StaffApi = CodeCheckApi & CodeListApi & RankingApi;
 
 export class StaffApiError extends Error {
   constructor(message: string) {
@@ -157,11 +174,27 @@ export function parseListEntry(value: unknown): CodeListEntry {
   };
 }
 
+function arrayOf(value: unknown, what: string): unknown[] {
+  if (Array.isArray(value)) return value;
+  throw new StaffApiError(`The staff API returned no ${what}.`);
+}
+
 function parseList(value: unknown): CodeListEntry[] {
-  if (!Array.isArray(value)) {
-    throw new StaffApiError("The staff API returned no code list.");
-  }
-  return value.map(parseListEntry);
+  return arrayOf(value, "code list").map(parseListEntry);
+}
+
+/** Map a `leaderboard` row. Other fields are dropped. */
+export function parseLeaderboardRow(value: unknown): LeaderboardRow {
+  const row = asRow(value);
+  return {
+    nickname: requiredText(row.nickname, "nickname"),
+    score: count(row.score, "score"),
+  };
+}
+
+function parseHidden(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  throw new StaffApiError("The staff API returned a bad hide result.");
 }
 
 /** Map the `dashboard_stats` body (snake_case JSON). */
@@ -257,6 +290,15 @@ export function createHttpStaffApi(fetchFn: typeof fetch): StaffApi {
     listCodes: () => listAll(fetchFn),
     async dashboardStats() {
       return parseStats(await send(fetchFn, STAFF.api.statsPath));
+    },
+    async leaderboard() {
+      const url = `${STAFF.api.leaderboardPath}?limit=${LEADERBOARD.topN}`;
+      const rows = arrayOf(await send(fetchFn, url), "ranking");
+      return rows.map(parseLeaderboardRow);
+    },
+    async hideNickname(nickname) {
+      const body = { nickname: nickname.trim() };
+      return parseHidden(await send(fetchFn, STAFF.api.hidePath, body));
     },
   };
 }

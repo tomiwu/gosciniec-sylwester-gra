@@ -158,6 +158,10 @@ export const STAFF = {
     listPath: "/api/staff/codes",
     /** GET. Body has the `dashboard_stats` shape. */
     statsPath: "/api/staff/stats",
+    /** GET with ?limit=. Rows have the public `leaderboard` shape (nickname, score). Hidden nicks are not in it. */
+    leaderboardPath: "/api/staff/leaderboard",
+    /** POST { nickname }. Body is true (nick found and hidden) or false (no such nick). */
+    hidePath: "/api/staff/hide-nickname",
     /** Same as the `list_codes` maximum page size. */
     listPageSize: 500,
     /** Safety stop: the client reads at most this many pages (10 000 codes). */

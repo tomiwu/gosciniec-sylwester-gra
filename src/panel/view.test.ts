@@ -89,6 +89,35 @@ describe("renderPanel", () => {
     expect(html).not.toContain(pl.panelSoon);
   });
 
+  it("shows the ranking view in the ranking section", () => {
+    const shell = {
+      session: staff,
+      allowList: allow,
+      section: "ranking" as const,
+    };
+    const html = renderPanel(
+      shell,
+      "",
+      '<div class="code-list-view"></div>',
+      '<div class="ranking-view"></div>',
+    );
+    expect(html).toContain('<div class="ranking-view"></div>');
+    expect(html).not.toContain("code-list-view");
+    expect(html).not.toContain(pl.panelSoon);
+  });
+
+  it("never shows the ranking view without a staff session", () => {
+    const view = '<div class="ranking-view"></div>';
+    const login = {
+      session: null,
+      allowList: allow,
+      section: "ranking" as const,
+    };
+    expect(renderPanel(login, "", "", view)).not.toContain("ranking-view");
+    const denied = { ...login, session: guest };
+    expect(renderPanel(denied, "", "", view)).not.toContain("ranking-view");
+  });
+
   it("never shows the code list view without a staff session", () => {
     const view = '<div class="code-list-view"></div>';
     const login = { session: null, allowList: allow, section: "list" as const };
