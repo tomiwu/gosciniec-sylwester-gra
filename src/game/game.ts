@@ -1,11 +1,14 @@
 import {
   CLOCK,
+  DEPTH,
   FIELD,
   ITEMS,
   PLAY,
   slowFactor,
+  tempoMultiplier,
   tickRemaining,
 } from "../config";
+import { placeItem } from "./depth";
 import { isCaught, spawnItem } from "./spawn";
 import type {
   EndReason,
@@ -36,15 +39,21 @@ function clampX(x: number): number {
 }
 
 function movePlayer(x: number, input: InputState, dtMs: number): number {
-  if (input.targetX !== null) return clampX(input.targetX);
-  return clampX(x + (input.dir * PLAY.playerSpeedPxPerSec * dtMs) / 1000);
+  const dragged = x + input.dragDx;
+  const walked = dragged + (input.dir * PLAY.playerSpeedPxPerSec * dtMs) / 1000;
+  return clampX(walked);
 }
 
-function advanceItems(items: readonly Item[], dtMs: number): Item[] {
-  const fall = (PLAY.fallSpeedPxPerSec * dtMs) / 1000;
+function advanceItems(
+  items: readonly Item[],
+  dtMs: number,
+  remainingMs: number,
+): Item[] {
+  const dz =
+    (DEPTH.approachPerSec * tempoMultiplier(remainingMs) * dtMs) / 1000;
   return items
-    .map((item) => ({ ...item, y: item.y + fall }))
-    .filter((item) => item.y < FIELD.height + FIELD.itemRadiusPx);
+    .map((item) => placeItem({ ...item, z: item.z + dz }))
+    .filter((item) => item.z < DEPTH.missZ);
 }
 
 function spawnDue(
@@ -55,10 +64,11 @@ function spawnDue(
   const items = [...state.items];
   let timer = state.spawnTimerMs + dtMs;
   let nextId = state.nextId;
-  while (timer >= PLAY.spawnEveryMs) {
+  const every = PLAY.spawnEveryMs / tempoMultiplier(state.remainingMs);
+  while (timer >= every) {
     items.push(spawnItem(nextId, rand));
     nextId += 1;
-    timer -= PLAY.spawnEveryMs;
+    timer -= every;
   }
   return { ...state, items, spawnTimerMs: timer, nextId };
 }
@@ -133,7 +143,7 @@ export function stepGame(
   const moved: GameState = {
     ...state,
     playerX: movePlayer(state.playerX, input, dtMs),
-    items: advanceItems(state.items, dtMs),
+    items: advanceItems(state.items, dtMs, state.remainingMs),
   };
   return tickClock(resolveCatches(spawnDue(moved, dtMs, rand)), dtMs, rawMs);
 }

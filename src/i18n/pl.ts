@@ -1,7 +1,8 @@
 /** Player-facing text. Keep this the only Polish in the source tree. */
 export const pl = {
   hotel: "Gościniec Uniejów",
-  title: "Sylwester 2026/2027",
+  title: "Sylwester",
+  year: "2026 / 2027",
   subtitle: "Oferta dla par",
   play: "Graj",
   playAgain: "Zagraj jeszcze raz",
@@ -16,8 +17,10 @@ export const pl = {
   share: "Udostępnij wynik",
   leaderboard: "Najlepsi gracze",
   book: "Zarezerwuj",
-  offerPrice: "599 zł / para",
-  offerWas: "740 zł",
+  priceRegular: "Cena regularna",
+  priceWithCode: "Z kodem",
+  priceWithShare: "Za 5 poleceń",
+  getCode: "Odbierz kod",
   discountUnlocked: "Kod zniżki 10% na bilet",
   discountReferral: "Kod zniżki 20% na bilet",
   discountLocked: "Zdobądź więcej punktów, żeby otrzymać kod zniżki.",
@@ -25,8 +28,12 @@ export const pl = {
   referralProgress: "Polecenia",
   copyLink: "Skopiuj link polecający",
   howTo:
-    "Przesuwaj parę w lewo i w prawo. Łap przedmioty. Omijaj przeszkody. Seria złowień spowalnia zegar.",
+    "Przeciągnij palcem, żeby prowadzić parę. Łap przedmioty. Omijaj przeszkody. Seria złowień spowalnia zegar.",
   localOnly: "Wyniki zapisujemy lokalnie, dopóki hotel nie podłączy serwera.",
+  eventWhen: "31.12.2026, godz. 20:00",
+  dj: "DJ Letsky",
+  address: "ul. Sienkiewicza 137, Uniejów",
+  photoCredits: "Zdjęcia: Gościniec Uniejów, Masandro, Annkes, Beemwej",
 } as const;
 
 export type PlKey = keyof typeof pl;

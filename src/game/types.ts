@@ -3,7 +3,13 @@ export type ItemKind = "glass" | "star" | "clock" | "obstacle";
 export interface Item {
   readonly id: number;
   readonly kind: ItemKind;
+  /** Floor lane, from 0 (left) to DEPTH.lanes - 1 (right). */
+  readonly lane: number;
+  /** Depth: 0 at the horizon, 1 at the catch line, above 1 past the couple. */
+  readonly z: number;
+  /** Projected screen x, from lane and z. */
   readonly x: number;
+  /** Projected screen y, from z. */
   readonly y: number;
 }
 
@@ -41,6 +47,6 @@ export interface GameState {
 export interface InputState {
   /** Keyboard direction: -1 left, 0 none, 1 right. */
   readonly dir: -1 | 0 | 1;
-  /** Pointer target in field pixels, or null when no pointer steers. */
-  readonly targetX: number | null;
+  /** Horizontal drag since the last read, in field pixels. 0 when idle. */
+  readonly dragDx: number;
 }

@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { FEEDBACK } from "../config";
 import { createEffects } from "./effects";
+import { placeItem } from "./depth";
 import { createGame } from "./game";
 import {
+  clockAngles,
   drawFrame,
   formatClock,
   formatFactor,
   type Ctx,
   type Labels,
 } from "./render";
+import { CLOCK } from "../config";
 import type { GameState, ItemKind } from "./types";
 
 const labels: Labels = { score: "Wynik", time: "Do północy" };
@@ -38,7 +41,9 @@ function fakeCtx() {
 function stateWith(kinds: ItemKind[], patch: Partial<GameState> = {}) {
   return {
     ...createGame(),
-    items: kinds.map((kind, id) => ({ id, kind, x: 50 + id * 40, y: 200 })),
+    items: kinds.map((kind, id) =>
+      placeItem({ id, kind, lane: id, z: 0.4 + id * 0.15 }),
+    ),
     ...patch,
   };
 }
@@ -61,6 +66,22 @@ describe("formatFactor", () => {
   });
 });
 
+describe("clockAngles", () => {
+  it("starts at 11:00 and ends at midnight", () => {
+    const start = clockAngles(CLOCK.baseDurationMs);
+    const end = clockAngles(0);
+    expect(start.hour).toBeCloseTo((11 / 12) * Math.PI * 2 - Math.PI / 2, 8);
+    expect(start.minute).toBeCloseTo(-Math.PI / 2, 8);
+    expect(end.hour).toBeCloseTo(-Math.PI / 2, 8);
+    expect(end.minute).toBeCloseTo(-Math.PI / 2, 8);
+  });
+
+  it("puts the minute hand at 6 at half time", () => {
+    const mid = clockAngles(CLOCK.baseDurationMs / 2);
+    expect(mid.minute).toBeCloseTo(Math.PI / 2, 8);
+  });
+});
+
 describe("drawFrame", () => {
   it("paints the background and the couple", () => {
     const { ctx, calls } = fakeCtx();
@@ -79,7 +100,7 @@ describe("drawFrame", () => {
     expect(calls).toContain("lineTo");
   });
 
-  it("shows the score and the clock in Polish labels", () => {
+  it("shows the score and the streak factor, not a digital timer", () => {
     const { ctx, texts } = fakeCtx();
     drawFrame(
       ctx,
@@ -88,8 +109,9 @@ describe("drawFrame", () => {
       labels,
     );
     expect(texts).toContain("Wynik: 45");
-    expect(texts).toContain("Do północy: 0:30");
-    expect(texts).toContain("×2.3");
+    expect(texts).toContain("×1.6");
+    expect(texts.some((line) => line.includes("Do północy"))).toBe(false);
+    expect(texts.some((line) => /\d:\d\d/.test(line))).toBe(false);
   });
 
   it("does not show a factor at streak 0", () => {
@@ -107,6 +129,7 @@ describe("drawFrame", () => {
       createGame(),
       {
         pops: [{ x: 100, y: 300, points: 15, ageMs: FEEDBACK.popMs / 2 }],
+        sparks: [],
         flashMs: FEEDBACK.flashMs,
         pulseMs: FEEDBACK.pulseMs,
         hitMs: FEEDBACK.hitMs,
@@ -117,6 +140,134 @@ describe("drawFrame", () => {
     expect(busy.calls.filter((c) => c === "strokeRect")).toHaveLength(1);
     expect(busy.calls.filter((c) => c === "fillRect").length).toBe(
       quiet.calls.filter((c) => c === "fillRect").length + 2,
+    );
+  });
+});
+
+function stubImg(width = 80, height = 120) {
+  return { width, height } as HTMLImageElement;
+}
+
+function stubArt() {
+  const view = stubImg(720, 1280);
+  return {
+    views: [view, view, view, view, view],
+    clockRing: stubImg(720, 720),
+    coupleIdle: stubImg(80, 120),
+    coupleLeft: stubImg(80, 120),
+    coupleRight: stubImg(80, 120),
+    coupleCatch: stubImg(80, 120),
+    itemGlass: stubImg(64, 90),
+    itemStar: stubImg(80, 80),
+    itemClock: stubImg(60, 90),
+    itemObstacle: stubImg(80, 80),
+  };
+}
+
+describe("drawFrame with art", () => {
+  it("draws the backdrop, the clock ring and the couple", () => {
+    const { ctx, calls } = fakeCtx();
+    drawFrame(ctx, createGame(), createEffects(), labels, {
+      nowMs: 1_000,
+      art: stubArt(),
+    });
+    expect(calls.filter((name) => name === "drawImage").length).toBeGreaterThan(
+      2,
+    );
+  });
+
+  it("draws item sprites when art is present", () => {
+    const { ctx, calls } = fakeCtx();
+    const kinds: ItemKind[] = ["glass", "star", "clock", "obstacle"];
+    const before = fakeCtx();
+    drawFrame(before.ctx, stateWith([]), createEffects(), labels, {
+      art: stubArt(),
+    });
+    drawFrame(ctx, stateWith(kinds), createEffects(), labels, {
+      art: stubArt(),
+    });
+    expect(calls.filter((name) => name === "drawImage").length).toBe(
+      before.calls.filter((name) => name === "drawImage").length + kinds.length,
+    );
+  });
+
+  it("draws sparkles around a catch", () => {
+    const { ctx, calls } = fakeCtx();
+    drawFrame(
+      ctx,
+      createGame(),
+      {
+        ...createEffects(),
+        sparks: [
+          {
+            x: 100,
+            y: 200,
+            vx: 10,
+            vy: -20,
+            ageMs: 80,
+            lifeMs: FEEDBACK.sparkMs,
+            size: 3,
+            hue: "gold",
+          },
+        ],
+      },
+      labels,
+    );
+    expect(calls).toContain("translate");
+    expect(calls).toContain("fill");
+  });
+
+  it("cross-fades between couple poses", () => {
+    const { ctx, calls } = fakeCtx();
+    drawFrame(ctx, createGame(), createEffects(), labels, {
+      nowMs: 800,
+      art: stubArt(),
+      pose: "left",
+      prevPose: "idle",
+      blend: 0.4,
+      lean: -0.14,
+      spinRad: 0.5,
+    });
+    // backdrop + clock ring + previous pose + current pose
+    expect(calls.filter((name) => name === "drawImage").length).toBeGreaterThan(
+      3,
+    );
+  });
+
+  it("uses the left, right and catch poses", () => {
+    const art = stubArt();
+    for (const view of [
+      { moveDir: -1 as const, catchAgeMs: 10_000 },
+      { moveDir: 1 as const, catchAgeMs: 10_000 },
+      { moveDir: 0 as const, catchAgeMs: 0 },
+    ]) {
+      const { ctx, calls } = fakeCtx();
+      drawFrame(ctx, createGame(), createEffects(), labels, {
+        nowMs: 800,
+        art,
+        ...view,
+      });
+      expect(calls).toContain("drawImage");
+    }
+  });
+
+  it("cross-fades Uniejow views near a clock-slot boundary", () => {
+    const { ctx, calls } = fakeCtx();
+    const start = fakeCtx();
+    const art = stubArt();
+    drawFrame(start.ctx, createGame(), createEffects(), labels, {
+      art,
+    });
+    // Mid-fade from hall to church: progress 0.18
+    drawFrame(
+      ctx,
+      { ...createGame(), remainingMs: CLOCK.baseDurationMs - 4_500 },
+      createEffects(),
+      labels,
+      { art },
+    );
+    expect(calls.filter((name) => name === "drawImage").length).toBe(
+      start.calls.filter((name) => name === "drawImage").length + 1,
     );
   });
 });
