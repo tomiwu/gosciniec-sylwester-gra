@@ -173,4 +173,48 @@ describe("handleRequest staff routes", () => {
     );
     expect(other.status).toBe(404);
   });
+
+  it("replays a staff round from its packed log", async () => {
+    const fetchFn = vi.fn(async (url: string) => {
+      if (String(url).includes("get_round_log")) {
+        return new Response(
+          JSON.stringify({ seed: 1, input_log: "not-json", score: 10 }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify(true), { status: 200 });
+    });
+    const response = await handleRequest(
+      new Request("https://app.example/api/staff/verify-round", {
+        method: "POST",
+        body: JSON.stringify({ roundId: "r1" }),
+      }),
+      deps(staff, fetchFn as unknown as typeof fetch),
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { ok: boolean; score: number };
+    expect(body.ok).toBe(false);
+    expect(body.score).toBe(10);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a missing round id and a failed log lookup", async () => {
+    const missing = await handleRequest(
+      new Request("https://app.example/api/staff/verify-round", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+      deps(staff, rpcOk({})),
+    );
+    expect(missing.status).toBe(400);
+    const fetchFn = vi.fn(async () => new Response("missing", { status: 404 }));
+    const failed = await handleRequest(
+      new Request("https://app.example/api/staff/verify-round", {
+        method: "POST",
+        body: JSON.stringify({ roundId: "r-missing" }),
+      }),
+      deps(staff, fetchFn as unknown as typeof fetch),
+    );
+    expect(failed.status).toBe(404);
+  });
 });

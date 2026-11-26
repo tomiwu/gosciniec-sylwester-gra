@@ -213,9 +213,42 @@ function rankingTable(state: PanelState): string {
       </table>`;
 }
 
+function flagText(flags: readonly string[]): string {
+  return flags.length ? flags.join(", ") : "—";
+}
+
+function replayText(ok: boolean | null): string {
+  if (ok === true) return pl.panelReplayOk;
+  if (ok === false) return pl.panelReplayBad;
+  return pl.panelReplayPending;
+}
+
+function roundsTable(state: PanelState): string {
+  const rows = state.rounds ?? [];
+  if (rows.length === 0) return `<p class="note">${pl.panelEmptyRounds}</p>`;
+  const body = rows
+    .map((row) => {
+      const sec = Math.round(row.wallMs / 1000);
+      return `<tr>
+            <td>${escapeHtml(row.nickname)}</td>
+            <td>${row.score}</td>
+            <td>${sec} s</td>
+            <td>${escapeHtml(flagText(row.flags))}</td>
+            <td>${escapeHtml(replayText(row.replayOk))}</td>
+            <td><button type="button" class="btn secondary" data-verify="${escapeHtml(row.id)}">${pl.panelVerify}</button></td>
+          </tr>`;
+    })
+    .join("");
+  return `<h2>${pl.panelRounds}</h2>
+    <table class="codes">
+      <thead><tr><th>${pl.panelNick}</th><th>${pl.score}</th><th>${pl.panelWallTime}</th><th>${pl.panelFlags}</th><th>${pl.panelReplay}</th><th></th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
 function rankingView(state: PanelState): string {
   const confirm = state.hidePending ? hideConfirm(state.hidePending) : "";
-  return `${rankingTable(state)}${confirm}${errorNote(state)}`;
+  return `${rankingTable(state)}${roundsTable(state)}${confirm}${errorNote(state)}`;
 }
 
 function sectionBody(state: PanelState): string {

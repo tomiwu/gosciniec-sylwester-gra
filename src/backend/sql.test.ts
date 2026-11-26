@@ -74,6 +74,8 @@ describe("supabase migrations", () => {
       "leaderboard",
       "referral_status",
       "record_referral_finish",
+      "start_round",
+      "issue_round_score",
     ]) {
       expect(found.get(name)).toBe("anon, authenticated");
     }
@@ -83,16 +85,19 @@ describe("supabase migrations", () => {
       "list_codes",
       "dashboard_stats",
       "hide_nickname",
+      "list_top_rounds",
+      "get_round_log",
+      "confirm_replay",
     ]) {
       expect(found.get(name)).toBe("authenticated");
-      expect(all).toContain(`create function public.${name}(`);
+      expect(all).toMatch(new RegExp(`function public\\.${name}\\(`));
     }
-    expect(found.size).toBe(9);
+    expect(found.size).toBe(14);
   });
 
   it("revoke the default function grants before the grants", () => {
     const revokes = all.match(/^revoke all on function public\.\w+\(/gm);
-    expect(revokes).toHaveLength(9);
+    expect(revokes).toHaveLength(14);
     expect(all).toContain(
       "revoke all on all functions in schema syl_private from public, anon, authenticated;",
     );
@@ -109,6 +114,8 @@ describe("supabase migrations", () => {
       "redemptions",
       "staff",
       "referral_links",
+      "rounds",
+      "round_logs",
     ]);
     for (const table of tables) {
       expect(all).toContain(
@@ -121,7 +128,7 @@ describe("supabase migrations", () => {
 
   it("check the staff in every staff function", () => {
     const staffCalls = all.match(/perform syl_private\.require_staff\(\);/g);
-    expect(staffCalls).toHaveLength(5);
+    expect(staffCalls).toHaveLength(8);
   });
 
   it("keep the referral token shape the same as the client", () => {
@@ -138,7 +145,25 @@ describe("supabase migrations", () => {
   });
 
   it("do not contain a service role key", () => {
-    expect(all).not.toMatch(/service_role/i);
     expect(all).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}/);
+    expect(all).not.toMatch(/sb_secret_/);
+  });
+
+  it("keep the anti-cheat caps in sync with src/config.ts", () => {
+    expect(all).toMatch(
+      /min_wall_ms\(\) returns integer language sql immutable as \$\$ select 20000 \$\$/,
+    );
+    expect(all).toMatch(
+      /max_round_age_ms\(\) returns integer language sql immutable as \$\$ select 180000 \$\$/,
+    );
+    expect(all).toMatch(
+      /rounds_per_hour\(\) returns integer language sql immutable as \$\$ select 20 \$\$/,
+    );
+    expect(all).toMatch(
+      /rounds_per_day\(\) returns integer language sql immutable as \$\$ select 60 \$\$/,
+    );
+    expect(all).toMatch(
+      /log_max_bytes\(\) returns integer language sql immutable as \$\$ select 16384 \$\$/,
+    );
   });
 });

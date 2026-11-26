@@ -17,7 +17,8 @@
     "precommit": "scripts/precommit.sh",
     "sandcastle": "npx tsx .sandcastle/main.mts",
     "test:loop": "npx tsx .sandcastle/loop-policy-test.mts && bash scripts/test-stop-gate.sh",
-    "build:kody": "tsc --noEmit && vite build --base /_assets/"
+    "build:kody": "tsc --noEmit && vite build --base /_assets/",
+    "build:kody:public": "tsc --noEmit && vite build --config vite.public.config.ts --base /_assets/"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "0.12.0",

@@ -133,6 +133,49 @@ it("shows the code list and the ranking", () => {
     section: "ranking",
   });
   expect(emptyRank).toContain(pl.panelEmptyRanking);
+  const withRounds = renderPanel({
+    session: staff,
+    allowList: allow,
+    section: "ranking",
+    rounds: [
+      {
+        id: "r1",
+        nickname: "Ada",
+        score: 200,
+        wallMs: 25000,
+        startedAt: "2026-11-26T00:00:00Z",
+        flags: ["few_events"],
+        replayOk: true,
+        summary: { glass: 1, star: 0, clock: 0, hits: 0 },
+      },
+      {
+        id: "r2",
+        nickname: "Ewa",
+        score: 0,
+        wallMs: 20000,
+        startedAt: "2026-11-26T00:00:00Z",
+        flags: [],
+        replayOk: false,
+        summary: { glass: 0, star: 0, clock: 0, hits: 0 },
+      },
+      {
+        id: "r3",
+        nickname: "Jan",
+        score: 10,
+        wallMs: 21000,
+        startedAt: "2026-11-26T00:00:00Z",
+        flags: [],
+        replayOk: null,
+        summary: { glass: 1, star: 0, clock: 0, hits: 0 },
+      },
+    ],
+  });
+  expect(withRounds).toContain(pl.panelVerify);
+  expect(withRounds).toContain(pl.panelReplayOk);
+  expect(withRounds).toContain(pl.panelReplayBad);
+  expect(withRounds).toContain(pl.panelReplayPending);
+  expect(withRounds).toContain("few_events");
+  expect(withRounds).toContain('data-verify="r1"');
 });
 
 describe("escapeHtml", () => {

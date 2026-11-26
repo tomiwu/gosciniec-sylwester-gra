@@ -1,3 +1,4 @@
+import type { InputLogEvent } from "./input-log";
 import type { InputState } from "./types";
 
 export interface InputSources {
@@ -7,6 +8,7 @@ export interface InputSources {
   readonly pointer: EventTarget;
   /** Maps a screen x to a field x. */
   readonly toFieldX: (clientX: number) => number;
+  readonly onEvent?: (event: InputLogEvent) => void;
 }
 
 export interface GameInput {
@@ -41,6 +43,17 @@ export function createInput(sources: InputSources): GameInput {
   let pendingDx = 0;
   const subscriptions: [EventTarget, string, EventListener][] = [];
 
+  const emit = (event: InputLogEvent) => sources.onEvent?.(event);
+  let startedAt: number | null = null;
+  const now = () => {
+    const t0 =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    startedAt ??= t0;
+    return t0 - startedAt;
+  };
+  const keyOf = (side: "left" | "right"): "L" | "R" =>
+    side === "left" ? "L" : "R";
+
   const listen = (target: EventTarget, type: string, fn: EventListener) => {
     target.addEventListener(type, fn);
     subscriptions.push([target, type, fn]);
@@ -53,6 +66,7 @@ export function createInput(sources: InputSources): GameInput {
     event.preventDefault();
     if (side === "left") left = down;
     else right = down;
+    emit({ t: now(), kind: down ? "kd" : "ku", key: keyOf(side) });
   };
 
   const point = (event: Event) =>
@@ -67,16 +81,20 @@ export function createInput(sources: InputSources): GameInput {
   listen(sources.pointer, "pointerdown", (event) => {
     pressed = true;
     lastX = point(event);
+    emit({ t: now(), kind: "pd", x: lastX });
   });
   listen(sources.pointer, "pointermove", (event) => {
     if (!pressed || lastX === null) return;
     const x = point(event);
     pendingDx += x - lastX;
     lastX = x;
+    emit({ t: now(), kind: "pm", x });
   });
-  const release = () => {
+  const release = (event?: Event) => {
+    const x = event ? point(event) : lastX;
     pressed = false;
     lastX = null;
+    emit({ t: now(), kind: "pu", ...(typeof x === "number" ? { x } : {}) });
   };
   listen(sources.pointer, "pointerup", release);
   listen(sources.pointer, "pointercancel", release);

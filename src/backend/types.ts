@@ -2,11 +2,42 @@
  * Pluggable backend. The game and the staff use a local mock until Supabase keys exist.
  * The Supabase SQL functions in `supabase/migrations/` return the same shapes.
  */
+export type CatchSummary = {
+  glass: number;
+  star: number;
+  clock: number;
+  hits: number;
+};
+
 export type SubmitInput = {
   nickname: string;
   score: number;
   deviceId: string;
   referralCode?: string;
+  /** Present when start_round succeeded. */
+  roundId?: string;
+  token?: string;
+  seed?: number;
+  summary?: CatchSummary;
+  inputLog?: string;
+  wallMs?: number;
+};
+
+export type RoundStart = {
+  id: string;
+  token: string;
+  seed: number;
+};
+
+export type RoundRow = {
+  id: string;
+  nickname: string;
+  score: number;
+  wallMs: number;
+  startedAt: string;
+  flags: string[];
+  replayOk: boolean | null;
+  summary: CatchSummary;
 };
 
 export type SubmitResult = {
@@ -35,6 +66,8 @@ export type ReferralStatus = {
 /** Player side: the anon role may call only these. */
 export type ScoreBackend = {
   submit(input: SubmitInput): Promise<SubmitResult>;
+  /** Null when the live database does not have start_round yet. */
+  startRound(deviceId: string): Promise<RoundStart | null>;
   top(limit: number): Promise<ScoreRow[]>;
   /** Null when the code is unknown or the server does not have the referral RPCs yet. */
   referralStatus(code: string): Promise<ReferralStatus | null>;
@@ -88,6 +121,15 @@ export type StaffBackend = {
   listCodes(limit: number, offset: number): Promise<CodeRow[]>;
   stats(): Promise<DashboardStats>;
   hideNickname(nickname: string): Promise<boolean>;
+  listTopRounds(limit: number): Promise<RoundRow[]>;
+  confirmReplay(
+    roundId: string,
+    ok: boolean,
+    flags: readonly string[],
+  ): Promise<boolean>;
+  getRoundLog(
+    roundId: string,
+  ): Promise<{ seed: number; inputLog: string; score: number } | null>;
 };
 
 export type BackendErrorKind = "forbidden" | "network" | "server";
