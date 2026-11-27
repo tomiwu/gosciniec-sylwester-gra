@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { SERVICE_ROLE_PLACEHOLDER } from "./staff-rpc";
-import { handleRequest, type AppUser, type HandleDeps } from "./handle";
+import {
+  handleRequest,
+  visitorFromHeader,
+  type AppUser,
+  type HandleDeps,
+} from "./handle";
 
 const staff: AppUser = { id: "1", username: "tomiwu" };
 const guest: AppUser = { id: "2", username: "stranger" };
@@ -50,11 +54,9 @@ describe("handleRequest", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it("calls check_code with the service-role placeholder when staff is signed in", async () => {
+  it("calls check_code when staff is signed in", async () => {
     const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
       expect(url).toContain("/rpc/check_code");
-      const headers = new Headers(init?.headers);
-      expect(headers.get("apikey")).toBe(SERVICE_ROLE_PLACEHOLDER);
       expect(String(init?.body)).toBe(JSON.stringify({ p_code: "SYL-SBAA" }));
       return new Response(
         JSON.stringify({ status: "valid", code: "SYL-SBAA" }),
@@ -216,5 +218,16 @@ describe("handleRequest staff routes", () => {
       deps(staff, fetchFn as unknown as typeof fetch),
     );
     expect(failed.status).toBe(404);
+  });
+});
+
+describe("visitorFromHeader", () => {
+  it("reads a complete visitor and rejects a bad payload", () => {
+    expect(
+      visitorFromHeader(JSON.stringify({ userId: "u1", username: "tomiwu" })),
+    ).toEqual({ id: "u1", username: "tomiwu" });
+    expect(visitorFromHeader(null)).toBeNull();
+    expect(visitorFromHeader("{")).toBeNull();
+    expect(visitorFromHeader(JSON.stringify({ userId: "u1" }))).toBeNull();
   });
 });

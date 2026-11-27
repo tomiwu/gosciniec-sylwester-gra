@@ -1,26 +1,16 @@
-import { createPackageAppAuth } from "kody:@kentcdodds/package-app-kit/auth";
-import { packageContext } from "kody:runtime";
-import { handleRequest, PACKAGE_LEAF, type AppUser } from "./handle";
-
-const authOptions: { packageName: string; cookiePrefix?: string } = {
-  packageName: PACKAGE_LEAF,
-};
-if (packageContext?.cookiePrefix) {
-  authOptions.cookiePrefix = packageContext.cookiePrefix;
-}
-const auth = createPackageAppAuth(authOptions);
+import { credential } from "kody:runtime";
+import { handleRequest, visitorFromHeader, type AppUser } from "./handle";
 
 async function resolveUser(request: Request): Promise<AppUser | null> {
-  const user = await auth.resolveUser(request);
-  if (!user) return null;
-  return { id: user.id, username: user.username };
+  return visitorFromHeader(request.headers.get("X-Kody-Visitor"));
 }
 
-/** Kody package-app entry. Do not put the service role in the client bundle. */
+/** Kody package-app entry. The credential client injects the staff key. */
 export default {
   async fetch(request: Request): Promise<Response> {
+    const supabase = await credential("supabase-service-role");
     return handleRequest(request, {
-      fetch,
+      fetch: (input, init) => supabase.fetch(input, init),
       allowList: ["tomiwu"],
       resolveUser,
     });

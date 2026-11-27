@@ -1,7 +1,6 @@
-/** Server-side staff RPCs. The service-role value is a Kody secret placeholder. */
+/** Server-side staff RPCs. The credential client injects the secret at the host. */
 
 export const SUPABASE_URL = "https://csyrndeuldzbbkizmcav.supabase.co";
-export const SERVICE_ROLE_PLACEHOLDER = "{{secret:supabaseServiceRole}}";
 export const STAFF_HOST = "csyrndeuldzbbkizmcav.supabase.co";
 
 export type StaffRpcName =
@@ -21,11 +20,10 @@ export type StaffRpcResult = {
   body: unknown;
 };
 
-export function staffRpcHeaders(secret: string): HeadersInit {
+export function staffRpcHeaders(): HeadersInit {
   return {
-    apikey: secret,
-    Authorization: `Bearer ${secret}`,
     "Content-Type": "application/json",
+    "x-kody-secret-resolution": "headers-only",
   };
 }
 
@@ -41,14 +39,12 @@ export async function callStaffRpc(
   args: Record<string, unknown>,
   options: {
     fetch: typeof fetch;
-    secret?: string;
     supabaseUrl?: string;
   },
 ): Promise<StaffRpcResult> {
-  const secret = options.secret ?? SERVICE_ROLE_PLACEHOLDER;
   const response = await options.fetch(staffRpcUrl(rpc, options.supabaseUrl), {
     method: "POST",
-    headers: staffRpcHeaders(secret),
+    headers: staffRpcHeaders(),
     body: JSON.stringify(args),
   });
   const text = await response.text();

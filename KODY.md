@@ -9,10 +9,10 @@ Supabase stores the scores and the discount codes.
   bundle. The anon role may call only `issue_code` and `leaderboard`.
 - Staff requests run only in the Kody fetch handler (`src/kody/entry.ts`).
   The handler calls `check_code`, `redeem_code`, `list_codes`,
-  `dashboard_stats`, `hide_nickname`, and `leaderboard` with the user
-  secret `supabaseServiceRole`. The placeholder in the source is
-  `{{secret:supabaseServiceRole}}`. The live value must never be in the
-  client, the repository, or a log.
+  `dashboard_stats`, `hide_nickname`, `leaderboard`, `list_top_rounds`,
+  `get_round_log`, and `confirm_replay` through `credential("supabase-service-role")`.
+  That package need is bound to the user secret `supabaseServiceRole`.
+  The live value must never be in the client, the repository, or a log.
 - The approved host for that secret is `csyrndeuldzbbkizmcav.supabase.co`.
 - Panel access is **Sign in with Kody** (`/-/auth/login`). The allow list
   is `STAFF.allowList` in `src/config.ts` (default: `tomiwu`). The handler

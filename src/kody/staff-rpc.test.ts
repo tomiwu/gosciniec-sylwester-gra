@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  SERVICE_ROLE_PLACEHOLDER,
   STAFF_HOST,
   callStaffRpc,
   staffRpcHeaders,
@@ -8,17 +7,16 @@ import {
 } from "./staff-rpc";
 
 describe("callStaffRpc", () => {
-  it("posts to the approved host with the secret placeholder, never a live key", async () => {
+  it("posts to the approved host without putting a key in source headers", async () => {
     const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
       expect(url).toBe(
         "https://csyrndeuldzbbkizmcav.supabase.co/rest/v1/rpc/check_code",
       );
       expect(new URL(url).host).toBe(STAFF_HOST);
       const headers = new Headers(init?.headers);
-      expect(headers.get("Authorization")).toBe(
-        `Bearer ${SERVICE_ROLE_PLACEHOLDER}`,
-      );
-      expect(headers.get("apikey")).toBe(SERVICE_ROLE_PLACEHOLDER);
+      expect(headers.get("apikey")).toBeNull();
+      expect(headers.get("Authorization")).toBeNull();
+      expect(headers.get("x-kody-secret-resolution")).toBe("headers-only");
       expect(init?.body).not.toMatch(/sb_/);
       return new Response(
         JSON.stringify({ status: "valid", code: "SYL-TEST" }),
@@ -51,9 +49,8 @@ describe("callStaffRpc", () => {
 describe("staffRpc helpers", () => {
   it("builds the RPC URL and headers", () => {
     expect(staffRpcUrl("dashboard_stats")).toContain("/rpc/dashboard_stats");
-    const headers = new Headers(
-      staffRpcHeaders("{{secret:supabaseServiceRole}}"),
-    );
-    expect(headers.get("apikey")).toBe(SERVICE_ROLE_PLACEHOLDER);
+    expect(staffRpcUrl("list_top_rounds")).toContain("/rpc/list_top_rounds");
+    const headers = new Headers(staffRpcHeaders());
+    expect(headers.get("Content-Type")).toBe("application/json");
   });
 });

@@ -13,11 +13,15 @@ function rule(name: string, body: string): string {
   return `create function syl_private.${name} language sql immutable as $$ select ${body} $$;`;
 }
 
-function grants(): Map<string, string> {
-  const found = new Map<string, string>();
+function grants(): Map<string, string[]> {
+  const found = new Map<string, string[]>();
   const pattern = /^grant execute on function public\.(\w+)\(.*\) to (.+);$/gm;
   for (const match of all.matchAll(pattern)) {
-    found.set(String(match[1]), String(match[2]));
+    const name = String(match[1]);
+    const roles = String(match[2])
+      .split(",")
+      .map((role) => role.trim());
+    found.set(name, [...(found.get(name) ?? []), ...roles]);
   }
   return found;
 }
@@ -77,7 +81,7 @@ describe("supabase migrations", () => {
       "start_round",
       "issue_round_score",
     ]) {
-      expect(found.get(name)).toBe("anon, authenticated");
+      expect(found.get(name)).toEqual(["anon", "authenticated"]);
     }
     for (const name of [
       "check_code",
@@ -85,11 +89,12 @@ describe("supabase migrations", () => {
       "list_codes",
       "dashboard_stats",
       "hide_nickname",
-      "list_top_rounds",
-      "get_round_log",
-      "confirm_replay",
     ]) {
-      expect(found.get(name)).toBe("authenticated");
+      expect(found.get(name)).toEqual(["authenticated"]);
+      expect(all).toMatch(new RegExp(`function public\\.${name}\\(`));
+    }
+    for (const name of ["list_top_rounds", "get_round_log", "confirm_replay"]) {
+      expect(found.get(name)).toEqual(["authenticated", "service_role"]);
       expect(all).toMatch(new RegExp(`function public\\.${name}\\(`));
     }
     expect(found.size).toBe(14);
