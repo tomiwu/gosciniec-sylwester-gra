@@ -5,6 +5,36 @@ export const PACKAGE_LEAF = "gosciniec-sylwester-gra";
 
 export type AppUser = { id: string; username: string };
 
+function parseVisitor(
+  raw: string,
+): { userId?: unknown; username?: unknown } | null {
+  try {
+    return JSON.parse(raw) as { userId?: unknown; username?: unknown };
+  } catch {
+    return null;
+  }
+}
+
+function namedField(value: unknown): string {
+  return typeof value === "string" && value.length > 0 ? value : "";
+}
+
+function asVisitor(
+  value: { userId?: unknown; username?: unknown } | null,
+): AppUser | null {
+  if (!value) return null;
+  const userId = namedField(value.userId);
+  const username = namedField(value.username);
+  if (!userId || !username) return null;
+  return { id: userId, username };
+}
+
+/** Read the platform visitor header. The host strips inbound X-Kody-* and sets this itself. */
+export function visitorFromHeader(raw: string | null): AppUser | null {
+  if (!raw) return null;
+  return asVisitor(parseVisitor(raw));
+}
+
 export type HandleDeps = {
   fetch: typeof fetch;
   allowList: readonly string[];

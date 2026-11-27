@@ -41,6 +41,11 @@
     "app": {
       "entry": "./src/kody/entry.ts",
       "assets": "./dist"
+    },
+    "credentials": {
+      "supabase-service-role": {
+        "description": "Supabase service role used only by the Kody fetch handler to call staff RPCs on the approved host csyrndeuldzbbkizmcav.supabase.co."
+      }
     }
   }
 }

@@ -671,3 +671,6 @@ grant execute on function public.issue_round_score(text, integer, text, uuid, te
 grant execute on function public.list_top_rounds(integer) to authenticated;
 grant execute on function public.get_round_log(uuid) to authenticated;
 grant execute on function public.confirm_replay(uuid, boolean, text[]) to authenticated;
+grant execute on function public.list_top_rounds(integer) to service_role;
+grant execute on function public.get_round_log(uuid) to service_role;
+grant execute on function public.confirm_replay(uuid, boolean, text[]) to service_role;
